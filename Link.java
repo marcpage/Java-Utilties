@@ -6,8 +6,7 @@ import java.util.ArrayList;
 /** Manages Unix symlinks.
 	<b>TODO</b>
 	<ul>
-		<li>Document
-		<li>Creation of symlinks
+		<li>
 	</ul>
 */
 public class Link {

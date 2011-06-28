@@ -30,6 +30,11 @@ As documented at: http://en.wikipedia.org/wiki/INI_file
 </ul>
 */
 public class Ini {
+	/** New empty Ini.
+	*/
+	public Ini() {
+		_lines= new ArrayList<_Line>();
+	}
 	/** Initializes an Ini from a stream.
 		@param in			The stream to read the ini text from. Read until end of stream, but not closed.
 		@throws IOException	Thrown from reading <code>in</code>
@@ -55,6 +60,29 @@ public class Ini {
 			}
 			line= lines.readLine();
 		}
+	}
+	/** Extracts the global namespace to a new Ini.
+		@return An Ini with just the global namespace.
+	*/
+	public Ini extract() {
+		return extract(null);
+	}
+	/** Extracts the given section into it's own Ini.
+		@param section	The name of the section to extract, or null for the global section
+		@return			An Ini that contains just the given section
+	*/
+	public Ini extract(String section) {
+		int		sectionStart= _findSectionStart(section);
+		int		sectionEnd= _findEndOfSection(sectionStart);
+		Ini		result= new Ini();
+
+		if(sectionStart > 0) { // not global namespace
+			--sectionStart;	// include the section name
+		}
+		for(int index= sectionStart; index < sectionEnd; ++index) {
+			result._lines.add(_lines.get(index));
+		}
+		return result;
 	}
 	/** Serializes this into a textual ini format.
 		@param out			The stream that receives the ini data
@@ -367,121 +395,6 @@ public class Ini {
 		}
 		return false;
 	}
-	/** The characters to escape.*/
-	private static final String[]	_unescapes= "\\,\0,\007,\b,\t,\r,\n,;,#,=,:,',\"".split(",");
-	/** The characters to unescape.*/
-	private static final String[]	_escapes= "\\\\,\\0,\\a,\\b,\\t,\\r,\\n,\\;,\\#,\\=,\\:,\\x0027,\\x0022".split(",");
-	/** The characters to escape in reverse order.*/
-	private static final String[]	_reverseUnescapes= _reverse(_unescapes);
-	/** The characters to unescape in reverse order.*/
-	private static final String[]	_reverseEscapes= _reverse(_escapes);
-	/** The pattern of a section */
-	private static final Pattern	_sectionPattern= Pattern.compile("^\\s*\\[\\s*([^\\]]+)\\s*\\]\\s*([#;]\\s*(.*))?\\s*$");
-	/** The pattern of a key/single-quote-value (') line */
-	private static final Pattern	_singleQuoteKeyValuePattern= Pattern.compile("^\\s*([^#;:=][^:=]*)\\s*[:=]\\s*'([^']+)'\\s*([#;]\\s*(.*))?\\s*$");
-	/** The pattern of a key/double-quote-value (") line */
-	private static final Pattern	_doubleQuoteKeyValuePattern= Pattern.compile("^\\s*([^#;:=][^:=]*)\\s*[:=]\\s*\"([^']+)\"\\s*([#;]\\s*(.*))?\\s*$");
-	/** The pattern of a key/value line */
-	private static final Pattern	_keyValuePattern= Pattern.compile("^\\s*([^#;:=][^:=]*)\\s*[:=]\\s*([^#;\\r\\n]+)\\s*([#;]\\s*(.*))?\\s*$");
-	/** The pattern of an escaped unicode value */
-	private static final Pattern	_unicodePointPattern= Pattern.compile("\\\\x([0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f])");
-	/** The format for escaping a unicode value */
-	private static final String		_unicodeEscape= "\\x%04x";
-	/** The lowest character value that is not unicode escaped */
-	private static final char		_minUnescaped= ' ';
-	/** The highest character value that is not unicode escaped */
-	private static final char		_maxUnescaped= '~';
-	/** The key/value separator that will be used for new values */
-	private static final char		_preferredKeyValueSeparator= '=';
-	/** The value that will be used to start new comments */
-	private static final String		_preferredCommentStart= "# ";
-	/** The value that will be used to append a comment to a line */
-	private static final String		_preferredCommentSeparator= "\t"+_preferredCommentStart;
-	/** Does a series of search and replaces on a string.
-		Walks through a list of search patterns and replaces them with a matching replacement string.
-		@param item		The string to modify
-		@param searches	The strings to search for. Length must be the same as <code>replaces</code>
-		@param replaces	The strings to replace with. Length must be the same as <code>searches</code>
-		@return			<code>item</code> with every instance of <code>searches</code> replaced with <code>replaces</code>
-	*/
-	private static String _replaceWithList(String item, String[] searches, String[] replaces) {
-		assert null != item;
-		assert null != searches;
-		assert null != replaces;
-		assert searches.length == replaces.length;
-		for(int i= 0; i < searches.length; ++i) {
-			item= item.replace(searches[i], replaces[i]);
-		}
-		return item;
-	}
-	/** Escapes a string for writing to a line.
-		First replaces the <code>_unescapes</code> with the <code>_escapes</code>.
-		Then walks every character that is not in the range of <code>_minUnescaped</code> and <code>_maxUnescaped</code> inclusive
-		gets converted to a unicode value.
-		@param raw	The raw data. May be null
-		@return		<code>raw</code> encoded for ini files, or null if <code>raw</code> was null
-	*/
-	private static String _escape(String raw) {
-		if(null == raw) {
-			return null;
-		}
-		String			initial= _replaceWithList(raw, _unescapes, _escapes);
-		String			result= "";
-
-		for(char c : initial.toCharArray()) {
-			if( (_minUnescaped > c) || (c > _maxUnescaped) ) {
-				StringBuilder	formatted= new StringBuilder();
-				Formatter		formatter= new Formatter();
-
-				formatter.format(_unicodeEscape, (int)c);
-				result+= formatted.toString();
-			} else {
-				result+= String.valueOf(c);
-			}
-		}
-		return result;
-	}
-	/** Unescapes a value from an ini-type stream.
-		Reverses the search/replace and then looks for unicode value patterns and replaces them.
-		@param escaped	A value from an ini-type stream. May be null
-		@return			The unescaped form of <code>escaped</code> or null if <code>escaped</code> was null
-	*/
-	private static String _unescape(String escaped) {
-		if(null == escaped) {
-			return null;
-		}
-		String	initial= _replaceWithList(escaped, _reverseEscapes, _reverseUnescapes);
-		Matcher	unicode= _unicodePointPattern.matcher(initial);
-		String	result= "";
-		int		lastOffset= 0;
-
-		while(unicode.find()) {
-			result+= initial.substring(lastOffset, unicode.start());
-			result+= String.valueOf((char)Integer.parseInt(unicode.group(1), 16));
-			lastOffset= unicode.end();
-		}
-		return result + initial.substring(lastOffset);
-	}
-	/** Trims a string if it is not null.
-		@param value	possibly null string
-		@return			if <code>value</code> is null, null is returned, otherwise value.trim() is returned
-	*/
-	private static String _trimIfNotNull(String value) {
-		if(null == value) {
-			return null;
-		}
-		return value.trim();
-	}
-	/** Reverses and array of strings.
-		@param in	The array of strings
-		@return		An array with the same contents as <code>in</code>, but reversed.
-	*/
-	private static String[] _reverse(String[] in) {
-		List<String>	list= Arrays.asList(in);
-
-		Collections.reverse(list);
-		return list.toArray(in);
-	}
 	/** A line from an ini-type stream. */
 	private static class _Line {
 		/** The actual contents of the line, without any line endings */
@@ -492,6 +405,15 @@ public class Ini {
 		public String	value;
 		/** The comment at the end of a key/value or section, or a line that does not have either. */
 		public String	comment;
+		/** Creates a copy of a _Line
+			@param other	The _line to copy
+		*/
+		public _Line(_Line other) {
+			line= other.line;
+			keyOrSection= other.keyOrSection;
+			value= other.value;
+			comment= other.comment;
+		}
 		/** New _Line with the line, raw key, raw value and raw comment from the ini stream.
 			@param lineIn		The actual line from the ini-type stream, without line ending
 			@param keyIn		The actual key from the ini-type stream, still escaped
@@ -685,8 +607,123 @@ public class Ini {
 			return null;
 		}
 	}
+	/** The characters to escape.*/
+	private static final String[]	_unescapes= "\\,\0,\007,\b,\t,\r,\n,;,#,=,:,',\"".split(",");
+	/** The characters to unescape.*/
+	private static final String[]	_escapes= "\\\\,\\0,\\a,\\b,\\t,\\r,\\n,\\;,\\#,\\=,\\:,\\x0027,\\x0022".split(",");
+	/** The characters to escape in reverse order.*/
+	private static final String[]	_reverseUnescapes= _reverse(_unescapes);
+	/** The characters to unescape in reverse order.*/
+	private static final String[]	_reverseEscapes= _reverse(_escapes);
+	/** The pattern of a section */
+	private static final Pattern	_sectionPattern= Pattern.compile("^\\s*\\[\\s*([^\\]]+)\\s*\\]\\s*([#;]\\s*(.*))?\\s*$");
+	/** The pattern of a key/single-quote-value (') line */
+	private static final Pattern	_singleQuoteKeyValuePattern= Pattern.compile("^\\s*([^#;:=][^:=]*)\\s*[:=]\\s*'([^']+)'\\s*([#;]\\s*(.*))?\\s*$");
+	/** The pattern of a key/double-quote-value (") line */
+	private static final Pattern	_doubleQuoteKeyValuePattern= Pattern.compile("^\\s*([^#;:=][^:=]*)\\s*[:=]\\s*\"([^']+)\"\\s*([#;]\\s*(.*))?\\s*$");
+	/** The pattern of a key/value line */
+	private static final Pattern	_keyValuePattern= Pattern.compile("^\\s*([^#;:=][^:=]*)\\s*[:=]\\s*([^#;\\r\\n]+)\\s*([#;]\\s*(.*))?\\s*$");
+	/** The pattern of an escaped unicode value */
+	private static final Pattern	_unicodePointPattern= Pattern.compile("\\\\x([0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f])");
+	/** The format for escaping a unicode value */
+	private static final String		_unicodeEscape= "\\x%04x";
+	/** The lowest character value that is not unicode escaped */
+	private static final char		_minUnescaped= ' ';
+	/** The highest character value that is not unicode escaped */
+	private static final char		_maxUnescaped= '~';
+	/** The key/value separator that will be used for new values */
+	private static final char		_preferredKeyValueSeparator= '=';
+	/** The value that will be used to start new comments */
+	private static final String		_preferredCommentStart= "# ";
+	/** The value that will be used to append a comment to a line */
+	private static final String		_preferredCommentSeparator= "\t"+_preferredCommentStart;
 	/** The lines of the ini-type stream. */
 	private ArrayList<_Line>	_lines;
+	/** Does a series of search and replaces on a string.
+		Walks through a list of search patterns and replaces them with a matching replacement string.
+		@param item		The string to modify
+		@param searches	The strings to search for. Length must be the same as <code>replaces</code>
+		@param replaces	The strings to replace with. Length must be the same as <code>searches</code>
+		@return			<code>item</code> with every instance of <code>searches</code> replaced with <code>replaces</code>
+	*/
+	private static String _replaceWithList(String item, String[] searches, String[] replaces) {
+		assert null != item;
+		assert null != searches;
+		assert null != replaces;
+		assert searches.length == replaces.length;
+		for(int i= 0; i < searches.length; ++i) {
+			item= item.replace(searches[i], replaces[i]);
+		}
+		return item;
+	}
+	/** Escapes a string for writing to a line.
+		First replaces the <code>_unescapes</code> with the <code>_escapes</code>.
+		Then walks every character that is not in the range of <code>_minUnescaped</code> and <code>_maxUnescaped</code> inclusive
+		gets converted to a unicode value.
+		@param raw	The raw data. May be null
+		@return		<code>raw</code> encoded for ini files, or null if <code>raw</code> was null
+	*/
+	private static String _escape(String raw) {
+		if(null == raw) {
+			return null;
+		}
+		String			initial= _replaceWithList(raw, _unescapes, _escapes);
+		String			result= "";
+
+		for(char c : initial.toCharArray()) {
+			if( (_minUnescaped > c) || (c > _maxUnescaped) ) {
+				StringBuilder	formatted= new StringBuilder();
+				Formatter		formatter= new Formatter();
+
+				formatter.format(_unicodeEscape, (int)c);
+				result+= formatted.toString();
+			} else {
+				result+= String.valueOf(c);
+			}
+		}
+		return result;
+	}
+	/** Unescapes a value from an ini-type stream.
+		Reverses the search/replace and then looks for unicode value patterns and replaces them.
+		@param escaped	A value from an ini-type stream. May be null
+		@return			The unescaped form of <code>escaped</code> or null if <code>escaped</code> was null
+	*/
+	private static String _unescape(String escaped) {
+		if(null == escaped) {
+			return null;
+		}
+		String	initial= _replaceWithList(escaped, _reverseEscapes, _reverseUnescapes);
+		Matcher	unicode= _unicodePointPattern.matcher(initial);
+		String	result= "";
+		int		lastOffset= 0;
+
+		while(unicode.find()) {
+			result+= initial.substring(lastOffset, unicode.start());
+			result+= String.valueOf((char)Integer.parseInt(unicode.group(1), 16));
+			lastOffset= unicode.end();
+		}
+		return result + initial.substring(lastOffset);
+	}
+	/** Trims a string if it is not null.
+		@param value	possibly null string
+		@return			if <code>value</code> is null, null is returned, otherwise value.trim() is returned
+	*/
+	private static String _trimIfNotNull(String value) {
+		if(null == value) {
+			return null;
+		}
+		return value.trim();
+	}
+	/** Reverses and array of strings.
+		@param in	The array of strings
+		@return		An array with the same contents as <code>in</code>, but reversed.
+	*/
+	private static String[] _reverse(String[] in) {
+		List<String>	list= Arrays.asList(in);
+
+		Collections.reverse(list);
+		return list.toArray(in);
+	}
 	/** Finds the index of the first item of the given section.
 		If the section is empty, returns the index of the next section.
 		If the section is empty and the last section, returns the index after the last line.
