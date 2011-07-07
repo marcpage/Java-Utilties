@@ -38,7 +38,7 @@ import java.util.zip.DataFormatException;
 	<li>Make sure free blocks are consolidated any time we walk the list
 	</ul>
 */
-public class StorageFile {
+public class StorageFile implements Storage {
 	/** Creates or opens a storage file at the given path.
 		@param location		The path to the file to open or create.
 		@throws IOException	If there are any IO errors or the given file exists but is not a valid storage file.
@@ -79,7 +79,7 @@ public class StorageFile {
 		@return		true if the key is in the file, false if not
 		@throws IOException	If there are any IO errors
 	*/
-	public boolean has(String key) {
+	public boolean has(String key) throws IOException {
 		for(_Chunk chunk : _chunks) {
 			if(!chunk.free() && chunk.key().equals(key)) {
 				return true;
@@ -196,8 +196,9 @@ public class StorageFile {
 	/** Returns the total size in the storage file used for either free or key/data blocks.
 		@param free		true means add up the size of the free blocks, false means add up the size of the key/data blocks
 		@return			The number of bytes used
+		@throws IOException	If there are any IO errors
 	*/
-	public long size(boolean free) {
+	public long size(boolean free) throws IOException {
 		long	size= 0;
 
 		for(_Chunk chunk : _chunks) {

@@ -91,7 +91,6 @@ public class Ini {
 	*/
 	public Ini write(Writer out) throws IOException {
 		BufferedWriter	lines= new BufferedWriter(out);
-
 		for(_Line line : _lines) {
 			lines.write(line.line);
 			lines.newLine();
@@ -464,8 +463,8 @@ public class Ini {
 			@param commentIn							The comment for the key.
 		*/
 		public _Line(boolean directSignatureIgnoreThisParameter, String keyIn, String valueIn, String commentIn) {
-			keyOrSection= _unescape(keyIn);
-			value= _unescape(valueIn);
+			keyOrSection= keyIn;
+			value= valueIn;
 			comment= commentIn;
 			rebuild();
 		}
@@ -489,7 +488,7 @@ public class Ini {
 			if(isSection()) {
 				line= "["+_escape(keyOrSection)+"]"+commentString;
 			} else if(null != keyOrSection) {
-				line= _escape(keyOrSection)+_preferredKeyValueSeparator+_escape(value)+comment;
+				line= _escape(keyOrSection)+_preferredKeyValueSeparator+_escape(value)+commentString;
 			} else if(null != comment) {
 				line= _preferredCommentStart+_escape(comment);
 			} else {
@@ -608,9 +607,9 @@ public class Ini {
 		}
 	}
 	/** The characters to escape.*/
-	private static final String[]	_unescapes= "\\,\0,\007,\b,\t,\r,\n,;,#,=,:,',\"".split(",");
+	private static final String[]	_unescapes= "\0,\007,\b,\t,\r,\n,;,#,=,:,',\",\\".split(",");
 	/** The characters to unescape.*/
-	private static final String[]	_escapes= "\\\\,\\0,\\a,\\b,\\t,\\r,\\n,\\;,\\#,\\=,\\:,\\x0027,\\x0022".split(",");
+	private static final String[]	_escapes= "\\0,\\a,\\b,\\t,\\r,\\n,\\;,\\#,\\=,\\:,\\x0027,\\x0022,\\\\".split(",");
 	/** The characters to escape in reverse order.*/
 	private static final String[]	_reverseUnescapes= _reverse(_unescapes);
 	/** The characters to unescape in reverse order.*/
@@ -702,7 +701,8 @@ public class Ini {
 			result+= String.valueOf((char)Integer.parseInt(unicode.group(1), 16));
 			lastOffset= unicode.end();
 		}
-		return result + initial.substring(lastOffset);
+		result+= initial.substring(lastOffset);
+		return result;
 	}
 	/** Trims a string if it is not null.
 		@param value	possibly null string
