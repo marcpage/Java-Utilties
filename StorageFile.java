@@ -623,7 +623,9 @@ public class StorageFile implements Storage {
 				} while(dataLength != offset);
 				return decompressed;
 			} catch(DataFormatException exception) {
-				throw new IOException(exception);
+				// This really should be exception, not exception.toString()
+				// but java 1.5 (5.0) does not support that
+				throw new IOException(exception.toString());
 			}
 		}
 		return data;
