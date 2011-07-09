@@ -3,26 +3,28 @@ import java.io.InputStream;
 import java.io.IOException;
 
 /** Executes a system call.
+	Intended to be subclassed.
 	<b>TODO</b>
 	<ul>
-		<li>Document and correct _execute documentation
 		<li>Test
 	</ul>
 */
-class SystemCall {
+public class SystemCall {
 	public SystemCall() {
 	}
-	/** Creates a link.
-		@param target		The file to point to
-		@param link			The link file
-		@param absoluteLink	If true, the contents of link will be absolute, otherwise relative
-		@return				The contents of the newly created link file
-		@throws IOException				On errors reading from command line output
-		@throws InterruptedException	If the command was interrupted
+	/** Executes a command, and gets merged stderr and stdout.
+		@param commandAndArgs	The command, followed by the arguments
+		@return					The merged stdout and stderr
+		@throws IOException				If there is a problem reading from the merged stderr stdout stream
+		@throws InterruptedException	If the call is interrupted
+		@return				The merged stdout and stderr
 	*/
-	protected String _execute(String... commandAndArgs) throws IOException, InterruptedException {
+	protected static String _execute(String... commandAndArgs) throws IOException, InterruptedException {
 		ProcessBuilder	pb= new ProcessBuilder(Arrays.asList(commandAndArgs));
+		Process			proc;
 		String			results= "";
+		byte[]			data= new byte[4096];
+		InputStream		in;
 		
 		pb.redirectErrorStream(true);
 		proc= pb.start();
