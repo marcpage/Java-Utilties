@@ -12,6 +12,8 @@ import java.math.BigInteger;
 	See <a href="http://download.oracle.com/javase/1.5.0/docs/guide/security/CryptoSpec.html#AppA">MessageDigest Algorithms</a>
 
 		<b>TODO</b><ul>
+			<li>Add (parts_)<hash>_DOS, (parts_)<hash>_Unix, (parts_)<hash>_Mac for text files (no null) that are converted to that type.
+				Do not add (parts_)<hash>_Unix for Unix text files, etc.
 			<li>Ignore modification date in equals
 			<li>Ignore xattr and link in equals
 			<li>Find a better encoding for non-text xattr values in Manifest(location)
