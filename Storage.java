@@ -4,7 +4,9 @@ import java.io.IOException;
 
 	<b>TODO</b><ul>
 		<li>Correct documentation (copied from StorageFile)
-		<li>Add method link() that links a key to another key
+		<li>Add method link() that links a key to another key.
+			void link(String newKey, String sameAsKey);
+			List<String> keys(String key); // gets the links to this data
 	</ul>
 */
 public interface Storage {

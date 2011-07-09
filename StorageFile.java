@@ -33,6 +33,7 @@ import java.util.zip.DataFormatException;
 		If doNotExpand compact (get key right after a free block, remove it and re-add it with doNotExpand= false)
 		until we find a free block big enough. If no free block big enough is found, return false.
 	<li>implement compression of keys (flag for compressed key)
+	<li>implement link() API from Storage (see key redirection, next item)
 	<li>implement key redirection (flag for redirect, data is the key of where the data really is)
 	<li>implement hash for all data, and use that key, with key-redirection to get it
 	<li>Make sure free blocks are consolidated any time we walk the list
