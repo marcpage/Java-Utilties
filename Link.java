@@ -9,7 +9,7 @@ import java.util.ArrayList;
 		<li>
 	</ul>
 */
-public class Link {
+public class Link extends SystemCall {
 	/** Determine if this class is usable on this system
 		@return		true if you can use this class to read links and create them.
 	*/
@@ -22,7 +22,7 @@ public class Link {
 		@throws InterruptedException	If the command was interrupted
 	*/
 	public Link(File of) throws IOException, InterruptedException {
-		_target= _readlink(of);
+		_target= _execute(_command.getAbsolutePath(), of.getAbsolutePath()).trim();
 		if(_target.length() == 0) {
 			_target= null;
 		} else {
@@ -131,64 +131,9 @@ public class Link {
 			throw new IOException("Linking not available");
 		}
 		String			path= absoluteLink ? target.getAbsolutePath() : _relative(link, target);
-		ProcessBuilder	pb;
-		Process			proc;
-		byte[]			data= new byte[512];
-		InputStream		in;
-		String			results= "";
-
-		pb= new ProcessBuilder(_createCommand.getAbsolutePath(), "-s", path, link.getAbsolutePath());
-		pb.redirectErrorStream(true);
-		proc= pb.start();
-		in= proc.getInputStream();
-		while(true) {
-			int	amountRead= in.read(data);
-
-			if(amountRead < 0) {
-				break;
-			}
-			results+= new String(data, 0, amountRead);
-		}
-		in.close();
-		int	resultCode= proc.waitFor();
-		if(0 != resultCode) {
-			throw new IOException("readlink("+resultCode+"): "+results);
-		}
+		
+		_execute(_createCommand.getAbsolutePath(), "-s", path, link.getAbsolutePath());
 		return path;
-	}
-	/** Reads a link.
-		@param of			The link file to read
-		@return				The contents of the link
-		@throws IOException				On errors reading from command line output, or if the file is not a link
-		@throws InterruptedException	If the command was interrupted
-	*/
-	private static String _readlink(File of) throws IOException, InterruptedException {
-		String	results= "";
-		if(_available) {
-			ProcessBuilder	pb;
-			Process			proc;
-			byte[]			data= new byte[512];
-			InputStream		in;
-
-			pb= new ProcessBuilder(_command.getAbsolutePath(), of.getAbsolutePath());
-			pb.redirectErrorStream(true);
-			proc= pb.start();
-			in= proc.getInputStream();
-			while(true) {
-				int	amountRead= in.read(data);
-
-				if(amountRead < 0) {
-					break;
-				}
-				results+= new String(data, 0, amountRead);
-			}
-			in.close();
-			int	resultCode= proc.waitFor();
-			if(0 != resultCode) {
-				throw new IOException("readlink("+resultCode+"): "+results);
-			}
-		}
-		return results.trim();
 	}
 	/** Test.
 		@param args	Each file will be treated as a symlink and the ouput for each will be displayed.

@@ -8,7 +8,7 @@ import java.io.IOException;
 		<li>test adding attributes and removing them.
 	</ul>
 */
-public class Xattr {
+public class Xattr extends SystemCall {
 	/** Determines if this system supports xattr's
 		@return	true if you can use instances of this class
 	*/
@@ -120,28 +120,13 @@ public class Xattr {
 			InputStream		in;
 
 			if(delete) {
-				pb= new ProcessBuilder(_command.getCanonicalPath(), "-d", key, _toObserve.getCanonicalPath());
+				results= _execute(_command.getCanonicalPath(), "-d", key, _toObserve.getCanonicalPath());
 			} else if(null != value) {
-				pb= new ProcessBuilder(_command.getCanonicalPath(), "-w", "-x", key, value, _toObserve.getCanonicalPath());
+				results= _execute(_command.getCanonicalPath(), "-w", "-x", key, value, _toObserve.getCanonicalPath());
 			} else if(null != key) {
-				pb= new ProcessBuilder(_command.getCanonicalPath(), "-p", "-x", key, _toObserve.getCanonicalPath());
+				results= _execute(_command.getCanonicalPath(), "-p", "-x", key, _toObserve.getCanonicalPath());
 			} else {
-				pb= new ProcessBuilder(_command.getCanonicalPath(), _toObserve.getCanonicalPath());
-			}
-			pb.redirectErrorStream(true);
-			proc= pb.start();
-			in= proc.getInputStream();
-			while(true) {
-				int	amountRead= in.read(data);
-
-				if(amountRead < 0) {
-					break;
-				}
-				results+= new String(data, 0, amountRead);
-			}
-			in.close();
-			if(0 != proc.waitFor()) {
-				throw new IOException(results);
+				results= _execute(_command.getCanonicalPath(), _toObserve.getCanonicalPath());
 			}
 		}
 		return results;
