@@ -450,17 +450,17 @@ public class Stat extends SystemCall {
 				System.out.println("\t"+"size="+stat.size());
 				System.out.println("\t"+"readable="+stat.readable());
 				System.out.println("\t"+"writable="+stat.writable());
+				if(Stat.available(Stat.IsExecutableMask)) {
+					System.out.println("\t"+"executable="+stat.executable());
+				}
 				System.out.println("\t"+"hidden="+stat.hidden());
+				if(Stat.available(Stat.NoBackup)) {
+					System.out.println("\t"+"backup="+stat.backup());
+				}
 				System.out.println("\t"+"file="+stat.file());
 				System.out.println("\t"+"directory="+stat.directory());
 				System.out.println("\t"+"link="+stat.link());
 				System.out.println("\t"+"modified="+stat.modified()+" "+format.format(new java.util.Date(stat.modified())));
-				if(Stat.available(Stat.IsExecutableMask)) {
-					System.out.println("\t"+"executable="+stat.executable());
-				}
-				if(Stat.available(Stat.NoBackup)) {
-					System.out.println("\t"+"backup="+stat.backup());
-				}
 				if(Stat.available(Stat.Accessed)) {
 					System.out.println("\t"+"accessed="+stat.accessed()+" "+format.format(new java.util.Date(stat.accessed())));
 				}
