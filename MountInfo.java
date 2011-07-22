@@ -65,7 +65,11 @@ public class MountInfo {
 			FileSystemView	fsv= FileSystemView.getFileSystemView();
 			for(File root : File.listRoots()) {
 				if(fsv.getSystemTypeDescription(root).equals("Local Disk")) {
-					results.add(new MountInfo(root)); // only works on Java 1.6 (6.0) and later
+					MountInfo	info= new MountInfo(root); // only works on Java 1.6 (6.0) and later
+
+					if(info.size > 0) {
+						results.add(info);
+					}
 				}
 			}
 		} else {
@@ -140,7 +144,11 @@ public class MountInfo {
 			available= ((Long)getFreeSpace.invoke(p)).longValue();
 			size= ((Long)getTotalSpace.invoke(p)).longValue();
 			used= size - available;
-			capacityPercent= (int)(100 * used / size);
+			if(size > 0) {
+				capacityPercent= (int)(100 * used / size);
+			} else {
+				capacityPercent= 0;
+			}
 		} catch(NoSuchMethodException e1) {
 			throw new IOException(e1.toString());
 		} catch(IllegalAccessException e2) {
