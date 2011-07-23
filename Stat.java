@@ -79,14 +79,25 @@ public class Stat extends SystemCall {
 		@see #writable() */
 	public static final int IsLocked			= 0000002;
 	/** not a system value, just used for available(int)
-		@see #available(int) */
+		@see #available(int) 
+		@see #created() */
 	public static final int	Created				= 0111111;
 	/** not a system value, just used for available(int)
-		@see #available(int) */
+		@see #available(int)
+		@see #accessed() */
 	public static final int Accessed			= 0222222;
 	/** not a system value, just used for available(int)
-		@see #available(int) */
+		@see #available(int)
+		@see #birthed() */
 	public static final int Birthed				= 0333333;
+	/** not a system value, just used for available(int)
+		@see #available(int)
+		@see #flags() */
+	public static final int Flags				= 0444444;
+	/** not a system value, just used for available(int)
+		@see #available(int)
+		@see #permissions() */
+	public static final int Permissions			= 0555555;
 	
 	/** Determines if this version of Java and this Operating System support checking a specified field.
 		@param check One of the constants in this class.
@@ -105,6 +116,8 @@ public class Stat extends SystemCall {
 			case Created:
 			case Accessed:
 			case Birthed:
+			case Flags:
+			case Permissions:
 				return _available;
 			default:
 				return true;
@@ -125,10 +138,10 @@ public class Stat extends SystemCall {
 	*/
 	public boolean readable() {
 		if(_available) {
-			try	{
-				return (permissions() & IsReadableMask) != 0;
-			} catch(IOException e1) {
-			} catch(InterruptedException e2) {
+			int	perms= permissions();
+			
+			if(-1 != perms) {
+				return (perms & IsReadableMask) != 0;
 			}
 		}
 		return _toStat.canRead();
@@ -141,10 +154,12 @@ public class Stat extends SystemCall {
 	*/
 	public boolean writable() {
 		if(_available) {
-			try	{
-				return ((permissions() & IsWritableMask) != 0) && ((flags() & IsLocked) == 0);
-			} catch(IOException e1) {
-			} catch(InterruptedException e2) {
+			int	perms= permissions();
+			int	flgs= flags();
+			
+			if(-1 != perms) {
+				return ((perms & IsWritableMask) != 0)
+					&& ( (-1 == flgs) || ((flgs & IsLocked) == 0) );
 			}
 		}
 		return _toStat.canWrite();
@@ -157,10 +172,10 @@ public class Stat extends SystemCall {
 	*/
 	public boolean hidden() {
 		if(_available) {
-			try	{
-				return (flags() & IsHidden) != 0;
-			} catch(IOException e1) {
-			} catch(InterruptedException e2) {
+			int	flgs= flags();
+			
+			if(-1 != flgs) {
+				return (flgs & IsHidden) != 0;
 			}
 		}
 		return _toStat.isHidden();
@@ -175,10 +190,10 @@ public class Stat extends SystemCall {
 	*/
 	public boolean executable() throws UnsupportedOperationException {
 		if(_available) {
-			try	{
-				return (permissions() & IsExecutableMask) != 0;
-			} catch(IOException e1) {
-			} catch(InterruptedException e2) {
+			int	perms= permissions();
+			
+			if(-1 != perms) {
+				return (perms & IsExecutableMask) != 0;
 			}
 		}
 		if(null == _canExecute) {
@@ -199,10 +214,10 @@ public class Stat extends SystemCall {
 	*/
 	public boolean backup() {
 		if(_available) {
-			try	{
-				return (flags() & NoBackup) == 0;
-			} catch(IOException e1) {
-			} catch(InterruptedException e2) {
+			int	flgs= flags();
+			
+			if(-1 != flgs) {
+				return (flgs & NoBackup) == 0;
 			}
 		}
 		return true;
@@ -360,10 +375,16 @@ public class Stat extends SystemCall {
 					then returns <a href="http://linux.die.net/man/2/stat">st_mode & (S_IRWXU | S_IRWXG | S_IRWXO)</a>
 					otherwise returns -1
 	*/
-	public int permissions() throws IOException, InterruptedException {
+	public int permissions() {
 		if(_available) {
-			_calculate();
-			return Integer.parseInt(_stat.get("st_mode"), 8)&PERMISSIONS_MASK;
+			try	{
+				_calculate();
+				return Integer.parseInt(_stat.get("st_mode"), 8)&PERMISSIONS_MASK;
+			} catch(IOException io) {
+				// if there is an error, return -1
+			} catch(InterruptedException interrupt) {
+				// if there is an error, return -1
+			}
 		}
 		return -1;
 	}
@@ -372,10 +393,16 @@ public class Stat extends SystemCall {
 					then returns <a href="http://linux.die.net/man/2/stat">st_flags</a> field
 					otherwise returns -1
 	*/
-	public int flags() throws IOException, InterruptedException {
+	public int flags()  {
 		if(_available) {
-			_calculate();
-			return Integer.parseInt(_stat.get("st_flags"));
+			try	{
+				_calculate();
+				return Integer.parseInt(_stat.get("st_flags"));
+			} catch(IOException io) {
+				// if there is an error, return -1
+			} catch(InterruptedException interrupt) {
+				// if there is an error, return -1
+			}
 		}
 		return -1;
 	}
