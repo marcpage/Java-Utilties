@@ -5,8 +5,24 @@ import java.io.IOException;
 /** Get the xattr's of files on systems that support it.
 	<b>TODO</b>
 	<ul>
+		<li>look into using xattr -l just once on the file
+		<li>look into not using -x, if possible (setting them may not be).
+				Leopard xattr doesn't support -x
+				On setting, only use -x if necessary.
+				On getting, load all keys/values and cache them using xattr -l <file>
 		<li>test adding attributes and removing them.
+		<li>jni xattr due to 1 second per xattr call
 	</ul>
+
+<pre>
+$ xattr -l inwork/QueueLinesOutputStream.java 
+com.apple.FinderInfo:
+0000   54 45 58 54 21 52 63 68 00 00 00 00 00 00 00 00    TEXT!Rch........
+0010   00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00    ................
+
+com.itscommunity.test: true
+</pre>
+
 */
 public class Xattr extends SystemCall {
 	/** Determines if this system supports xattr's
@@ -30,7 +46,11 @@ public class Xattr extends SystemCall {
 		@throws	InterruptedException
 	*/
 	String[] keys() throws IOException, InterruptedException {
-		String	results= _xattr(null, null, false);
+		String		results= _xattr(null, null, false).trim();
+		
+		if(results.length() == 0) {
+			return new String[0];
+		}
 		return results.split("[\\r\\n]+");
 	}
 	/** Gets the value of an xattr
@@ -68,6 +88,8 @@ public class Xattr extends SystemCall {
 	private File					_toObserve;
 	/** The path to the xattr command line tool for Mac OS X */
 	private static final File		_command= new File("/usr/bin/xattr");
+	/** The path to the xattr command, as a string */
+	private static final String		_commandStr= _command.getAbsolutePath();
 	/** Cache if xattr tool is available on this system */
 	private static final boolean	_available= _command.isFile();
 
@@ -120,13 +142,13 @@ public class Xattr extends SystemCall {
 			InputStream		in;
 
 			if(delete) {
-				results= _execute(_command.getCanonicalPath(), "-d", key, _toObserve.getCanonicalPath());
+				results= _execute(_commandStr, "-d", key, _toObserve.getAbsolutePath());
 			} else if(null != value) {
-				results= _execute(_command.getCanonicalPath(), "-w", "-x", key, value, _toObserve.getCanonicalPath());
+				results= _execute(_commandStr, "-w", "-x", key, value, _toObserve.getAbsolutePath());
 			} else if(null != key) {
-				results= _execute(_command.getCanonicalPath(), "-p", "-x", key, _toObserve.getCanonicalPath());
+				results= _execute(_commandStr, "-p", "-x", key, _toObserve.getAbsolutePath());
 			} else {
-				results= _execute(_command.getCanonicalPath(), _toObserve.getCanonicalPath());
+				results= _execute(_commandStr, _toObserve.getAbsolutePath());
 			}
 		}
 		return results;

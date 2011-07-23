@@ -2,11 +2,11 @@ import java.io.Reader;
 import java.io.File;
 import java.io.IOException;
 import java.security.MessageDigest; // MD5, SHA-1, SHA-256, SHA-384, SHA-512
+import java.security.DigestException;
 import java.security.NoSuchAlgorithmException;
 import java.util.Date;
 import java.text.SimpleDateFormat;
 import java.io.FileInputStream;
-import java.math.BigInteger;
 
 /**
 	See <a href="http://download.oracle.com/javase/1.5.0/docs/guide/security/CryptoSpec.html#AppA">MessageDigest Algorithms</a>
@@ -20,30 +20,12 @@ import java.math.BigInteger;
 			<li>Find a better encoding for non-text xattr values in Manifest(location)
 					Possibly override set(String,byte[])
 			<li>Take encoding into account when comparing
-			<li>_handleFile allocates way to many buffers (digest()). create a buffer and reuse it
 			<li>_handleFile should make sure chunks are the expected size of the last chunk, in case of partial reads
 			<li>In _handleFile() use Storage.link() to link other hashes to the same data
 			<li>Handle the case in _handleFile() where a message digest is not supported and it's the one we chose for the main key
-			<li>Multithread to take account for calculating hashes vs waiting for disk
+			<li>Multithread to take account for calculating hashes vs waiting for disk. Right now xattr is the most expensive.
 			<li>Make sure SimpleDateFormat prints in UTC, not local timezone
 		</ul>
-
-		FIX
-
-[501360N-01M LabVIEW 2011 Pro.dmg]
-xattr_com.apple.diskimages.fsck=%D.t!7I
-xattr_com.apple.diskimages.recentcksum=i\:627945 on AF237B89-3EDA-3F38-AB23-EFE861D25504 @ 1308742439 - CRC32\:$582ECDE4
-xattr_com.apple.metadata\:kMDItemWhereFroms=bplist00_dhttp\://mlvbuild001/~lvbuild/NISoftware/LabVIEW/LabVIEW%202011/501360N-01M%20LabVIEW%202011%20Pro.dmg_>http\://mlvbuild001/~lvbuild/NISoftware/LabVIEW/LabVIEW%202011/\br\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0
-xattr_com.apple.quarantine=0000\;4e0df595\;Safari\;A67883BC-E2C4-4B1C-A4D2-D7E324D6AEE4|com.apple.Safari
-modified=2011/06/22,06-33-59
-size=612557076
-MD5=ba7d4c44b0898654260befed95903a3e
-parts_MD5=\;188692\:48db02de1e02e5003862397eeebe492b
-SHA-1=0246be513c6b00b77994e3baddb7200a4ba1c4bf
-parts_SHA-1=\;188692\:76305a070ae0242581d6f343cf32346f0e1f78d2
-
-[]
-size=3996825506
 
 */
 public class Manifest extends Ini {
@@ -61,9 +43,7 @@ public class Manifest extends Ini {
 	public Manifest(File location, Storage parts, Filter filter) throws IOException {
 		super();
 		set("name", location.getName());
-
 		long	size= _add(location, null, parts, filter);
-
 		set("size", ""+size);
 	}
 	public boolean equals(Object obj) {
@@ -118,7 +98,6 @@ public class Manifest extends Ini {
 		long	size= 0;
 		Stat	info= new Stat(location);
 		boolean	isLink= _handleLinks(location, info, section);
-		
 		_handleXattr(location, section);
 		_handleNodeFlags(info, section);
 		if(!isLink) {
@@ -129,9 +108,26 @@ public class Manifest extends Ini {
 				size= location.length();
 			}
 		}
-		//System.err.println("_add("+location+") size="+size);
 		return size;
 	}
+	private static final String	kHexDigits= "0123456789abcdef";
+	private static String _hashToHexString(byte[] hash, int bytes) {
+		char[]	characters= new char[bytes * 2];
+		int		index= 0;
+		
+		for(int b= 0; b < bytes; ++b) {
+			int	bint= hash[b];
+			
+			if(bint < 0) {
+				bint+= 256;
+			}
+			characters[index]= kHexDigits.charAt(bint >> 4);
+			characters[index + 1]= kHexDigits.charAt(bint & 0x0F);
+			index+= 2;
+		}
+		return new String(characters);
+	}
+	private static long last= System.nanoTime();
 	private void _handleFile(File location, Stat info, String section, Storage parts) throws IOException {
 		set(section, "size", ""+info.size());
 
@@ -156,6 +152,10 @@ public class Manifest extends Ini {
 				chunkHashes[h]= null;
 			}
 		}
+
+		byte[]	digest= null;
+		int		digestSize;
+		
 		do	{
 			amountRead= in.read(buffer);
 			if(amountRead > 0) {
@@ -163,16 +163,23 @@ public class Manifest extends Ini {
 				++blocks;
 
 				for(int h= 0; h < _supportedHashes.length; ++h) {
+					int	digestSizeRequired= globalHashes[h].getDigestLength();
+					
+					if( (null == digest) || (digestSizeRequired > digest.length) ) {
+						digest= new byte[digestSizeRequired];
+					}
 					if(null != globalHashes[h]) {
 						globalHashes[h].update(buffer, 0, amountRead);
 					}
 					if(null != chunkHashes[h]) {
-						byte[]	digest;
-
 						chunkHashes[h].reset();
-						chunkHashes[h].update(buffer, 0, amountRead);
-						digest= chunkHashes[h].digest();
-						hashes[h]= String.format("%0"+(digest.length*2)+"x", new BigInteger(1, digest));
+						try {
+							chunkHashes[h].update(buffer, 0, amountRead);
+							digestSize= chunkHashes[h].digest(digest, 0, digest.length);
+							hashes[h]= _hashToHexString(digest, digestSize);
+						} catch(DigestException exception) {
+							hashes[h]= "0";
+						}
 						if(null == partList[h]) {
 							partList[h]= ""+amountRead+":"+hashes[h];
 						} else if(lastRead != amountRead) {
@@ -192,20 +199,30 @@ public class Manifest extends Ini {
 			}
 		} while(amountRead >= 0);
 		for(int h= 0; h < _supportedHashes.length; ++h) {
-			byte[]	digest= globalHashes[h].digest();
-
-			set(section, _supportedHashes[h], String.format("%0"+(digest.length*2)+"x", new BigInteger(1, digest)));
-			if(blocks > 1) {
-				set(section, "parts_"+_supportedHashes[h], partList[h]);
+			int	digestSizeRequired= globalHashes[h].getDigestLength();
+			
+			if( (null == digest) || (digestSizeRequired > digest.length) ) {
+				digest= new byte[digestSizeRequired];
+			}
+			try	{
+				digestSize= globalHashes[h].digest(digest, 0, digest.length);
+	
+				set(section, _supportedHashes[h], _hashToHexString(digest, digestSize));
+				if(blocks > 1) {
+					set(section, "parts_"+_supportedHashes[h], partList[h]);
+				}
+			} catch(DigestException exception) {
+				// can't seem to get the hash
 			}
 		}
 	}
 	private long _handleDirectory(File location, String section, Storage parts, Filter filter) throws IOException {
 		String	prefix;
 		long	size= 0;
-
-		if(null == section) {
-			section= "";
+		String	sectionName= section;
+		
+		if(null == sectionName) {
+			sectionName= "";
 			prefix= "";
 		} else {
 			prefix= "/";
@@ -214,7 +231,7 @@ public class Manifest extends Ini {
 			File	path= new File(location, item);
 			
 			if( (null == filter) || !filter.skip(path) ) {
-				size+= _add(path, section+prefix+item, parts, filter);
+				size+= _add(path, sectionName+prefix+item, parts, filter);
 			}
 		}
 		set(section, "size",""+size);
@@ -281,12 +298,15 @@ public class Manifest extends Ini {
 		if(_xattr) {
 			try	{
 				Xattr	info= new Xattr(location);
+				String[]	keys= info.keys();
 
-				for(String key : info.keys()) {
+				for(String key : keys) {
 					set(section, "xattr_"+key, new String(info.value(key)));
 				}
 			} catch(IOException io) {
+				System.err.println("io error on "+location+": "+io);
 			} catch(InterruptedException interrupted) {
+				System.err.println("interrupted error on "+location+": "+interrupted);
 			}
 		}
 	}
