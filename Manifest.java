@@ -114,10 +114,10 @@ public class Manifest extends Ini {
 	private static String _hashToHexString(byte[] hash, int bytes) {
 		char[]	characters= new char[bytes * 2];
 		int		index= 0;
-		
+
 		for(int b= 0; b < bytes; ++b) {
 			int	bint= hash[b];
-			
+
 			if(bint < 0) {
 				bint+= 256;
 			}
@@ -155,7 +155,7 @@ public class Manifest extends Ini {
 
 		byte[]	digest= null;
 		int		digestSize;
-		
+
 		do	{
 			amountRead= in.read(buffer);
 			if(amountRead > 0) {
@@ -164,7 +164,7 @@ public class Manifest extends Ini {
 
 				for(int h= 0; h < _supportedHashes.length; ++h) {
 					int	digestSizeRequired= globalHashes[h].getDigestLength();
-					
+
 					if( (null == digest) || (digestSizeRequired > digest.length) ) {
 						digest= new byte[digestSizeRequired];
 					}
@@ -200,13 +200,13 @@ public class Manifest extends Ini {
 		} while(amountRead >= 0);
 		for(int h= 0; h < _supportedHashes.length; ++h) {
 			int	digestSizeRequired= globalHashes[h].getDigestLength();
-			
+
 			if( (null == digest) || (digestSizeRequired > digest.length) ) {
 				digest= new byte[digestSizeRequired];
 			}
 			try	{
 				digestSize= globalHashes[h].digest(digest, 0, digest.length);
-	
+
 				set(section, _supportedHashes[h], _hashToHexString(digest, digestSize));
 				if(blocks > 1) {
 					set(section, "parts_"+_supportedHashes[h], partList[h]);
@@ -220,7 +220,7 @@ public class Manifest extends Ini {
 		String	prefix;
 		long	size= 0;
 		String	sectionName= section;
-		
+
 		if(null == sectionName) {
 			sectionName= "";
 			prefix= "";
@@ -229,7 +229,7 @@ public class Manifest extends Ini {
 		}
 		for(String item : location.list()) {
 			File	path= new File(location, item);
-			
+
 			if( (null == filter) || !filter.skip(path) ) {
 				size+= _add(path, sectionName+prefix+item, parts, filter);
 			}
@@ -240,10 +240,10 @@ public class Manifest extends Ini {
 	private void _handleUnixFlags(String section, String name, Stat info, int flag, boolean supported, boolean printedValue) {
 		if(supported) {
 			int	flags= info.flags();
-			
+
 			if( (-1 != flags) && ( printedValue == ( (flags & flag) == flag ) ) ) {
 				String value;
-				
+
 				if(printedValue) {
 					value= _true;
 				} else {
@@ -277,14 +277,14 @@ public class Manifest extends Ini {
 		}
 		if(_flags) {
 			int	flags= info.flags();
-			
+
 			if( (-1 != flags) && (0 != flags) ) {
 				set(section, "unix-flags", ""+flags);
 			}
 		}
 		if(_permissions) {
 			int	permissions= info.permissions();
-			
+
 			if(-1 != permissions) {
 				set(section, "unix-permissions-octal", "0"+Integer.toOctalString(permissions));
 			}
@@ -298,9 +298,8 @@ public class Manifest extends Ini {
 		if(_xattr) {
 			try	{
 				Xattr	info= new Xattr(location);
-				String[]	keys= info.keys();
 
-				for(String key : keys) {
+				for(String key : info.keys()) {
 					set(section, "xattr_"+key, new String(info.value(key)));
 				}
 			} catch(IOException io) {
@@ -312,7 +311,7 @@ public class Manifest extends Ini {
 	}
 	private boolean _handleLinks(File location, Stat info, String section) {
 		boolean	isLink= false;
-		
+
 		if( _link && ( !_stat_link || info.link() ) ) {
 			try	{
 				Link	linkInfo= new Link(location);

@@ -2,6 +2,7 @@ import java.io.File;
 import java.io.InputStream;
 import java.io.IOException;
 import java.util.HashMap;
+import java.util.Set;
 import java.util.regex.Pattern;
 import java.util.regex.Matcher;
 
@@ -75,20 +76,15 @@ public class Xattr extends SystemCall {
 		if(!_available) {
 			throw new IOException("xattr not available");
 		}
-		//_cacheXattrs();
+		_cacheXattrs();
 	}
 	/** Gets the xattr keys of the file.
 		@return							They xattr keys for the file
 		@throws	IOException
 		@throws	InterruptedException
 	*/
-	String[] keys() throws IOException, InterruptedException {
-		String		results= _xattr(null, null, false).trim();
-
-		if(results.length() == 0) {
-			return new String[0];
-		}
-		return results.split("[\\r\\n]+");
+	Set<String> keys() throws IOException, InterruptedException {
+		return _xattrs.keySet();
 	}
 	/** Gets the value of an xattr
 		@param key	The xattr key
@@ -97,7 +93,7 @@ public class Xattr extends SystemCall {
 		@throws	InterruptedException
 	*/
 	byte[] value(String key) throws IOException, InterruptedException {
-		return _fromhex(_xattr(key, null, false));
+		return _xattrs.get(key);
 	}
 	/** Sets the value of an xattr on a file.
 		@param key		The key to set
@@ -130,7 +126,7 @@ public class Xattr extends SystemCall {
 	/** Cache if xattr tool is available on this system */
 	private static final boolean	_available= _command.isFile();
 	/* Cache of xattrs */
-	//private HashMap<String,byte[]>	_xattrs;
+	private HashMap<String,byte[]>	_xattrs;
 
 	/** Converts a byte array to a hex string.
 		Bytes are separated by a tab
@@ -158,6 +154,7 @@ public class Xattr extends SystemCall {
 		int			index= 0;
 
 		for(String b : bytes) {
+			//System.out.println("[["+b+"]]");
 			result[index]= Integer.valueOf(b, 16).byteValue();
 			++index;
 		}
@@ -187,52 +184,43 @@ public class Xattr extends SystemCall {
 			} else if(null != key) {
 				results= _execute(_commandStr, "-p", "-x", key, _toObserve.getAbsolutePath());
 			} else {
-				results= _execute(_commandStr/*, "-l"*/, _toObserve.getAbsolutePath());
+				results= _execute(_commandStr, "-l", _toObserve.getAbsolutePath());
 			}
 		}
 		return results;
 	}
-	private static final Pattern	_hexData= Pattern.compile("^[0-9A-Fa-f]+\\s+([0-9A-Fa-f][0-9A-Fa-f]\\s+)+\\S+\\s*$");
-	private static final Pattern	_keyValue= Pattern.compile("^(\\S+):\\s+(.*)\\s*$");
+	private static final Pattern	_value= Pattern.compile("^\\s*([0-9A-Fa-f]+)\\s+([0-9A-Fa-f][0-9A-Fa-f \t]+)\\s+\\|.*\\|\\s*$");
 	private static final Pattern	_key= Pattern.compile("^(\\S+):\\s*$");
 	private void _cacheXattrs() throws IOException, InterruptedException {
 		String		contents= _xattr(null, null, false);
 		String[]	lines= contents.split("[\\r\\n]+");
-		String		lastKey= null;
-		String		value= null;
+		String		key= null;
+		String		hex= null;
 
 		_xattrs= new HashMap<String,byte[]>();
 		for(String line : lines) {
-			Matcher	hexline= _hexData.matcher(line);
-			Matcher	key= _key.matcher(line);
-			Matcher	keyValue= _keyValue.matcher(line);
-			boolean	isHexline= hexline.find();
-			boolean	isKey= key.find();
-			boolean isKeyValue= keyValue.find();
+			Matcher	isKey= _key.matcher(line);
+			//System.out.println(">LINE:"+line+" KEY:"+key+" VALUE:"+hex);
+			if(isKey.find()) {
+				if( (null != key) && (null != hex) ) {
+					_xattrs.put(key, _fromhex(hex.trim()));
+				}
+				key= isKey.group(1);
+				hex= "";
+				//System.out.println("\t"+"KEY:"+key);
+			} else {
+				Matcher	isValue= _value.matcher(line);
 
-			if( isKey || isKeyValue ) {
-				if( (null != lastKey) && (null != value) ) {
-					byte[]	data= _fromhex(value.trim());
-
-					_xattrs.put(lastKey, data);
-					System.out.println("lastKey="+lastKey+" length="+data.length);
-					lastKey= null;
-					value= null;
+				if(isValue.find()) {
+					hex+= " "+isValue.group(2);
+					//System.out.println("\t"+"VALUE:"+hex);
 				}
 			}
-			if(isKey) {
-				lastKey= key.group(1);
-				value= "";
-				System.out.println("Starting: "+lastKey);
-			} else if(isKeyValue) {
-				_xattrs.put(keyValue.group(1), keyValue.group(2).getBytes());
-				System.out.println(keyValue.group(1)+"=[["+keyValue.group(2)+"]]");
-			} else if(isHexline) {
-				value+= hexline.group(1);
-				//System.out.println("value="+value);
-			}
+			//System.out.println("<LINE:"+line+" KEY:"+key+" VALUE:"+hex);
 		}
-		System.out.println("done");
+		if( (null != key) && (null != hex) ) {
+			_xattrs.put(key, _fromhex(hex.trim()));
+		}
 	}
 /*
 $ xattr -l inwork/QueueLinesOutputStream.java
