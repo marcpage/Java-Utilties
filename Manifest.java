@@ -13,8 +13,6 @@ import java.io.FileInputStream;
 
 		<b>TODO</b><ul>
 			<li>Document
-			<li>Add (parts_)<hash>_DOS, (parts_)<hash>_Unix, (parts_)<hash>_Mac for text files (no null) that are converted to that type.
-				Do not add (parts_)<hash>_Unix for Unix text files, etc.
 			<li>Ignore modification date in equals
 			<li>Ignore xattr and link in equals
 			<li>Find a better encoding for non-text xattr values in Manifest(location)
@@ -25,6 +23,7 @@ import java.io.FileInputStream;
 			<li>Handle the case in _handleFile() where a message digest is not supported and it's the one we chose for the main key
 			<li>Multithread to take account for calculating hashes vs waiting for disk. Right now xattr is the most expensive.
 			<li>Make sure SimpleDateFormat prints in UTC, not local timezone
+			<li>Add a way to look up hash location
 		</ul>
 
 */
@@ -37,14 +36,41 @@ public class Manifest extends Ini {
 			return path.getName().charAt(0) == '.';
 		}
 	}
+	public static class AnyFilter implements Filter {
+		public AnyFilter(Filter... filters) {
+			_filters= filters;
+		}
+		public boolean skip(File path) {
+			for(Filter filter : _filters) {
+				if(filter.skip(path)) {
+					return true;
+				}
+			}
+			return false;
+		}
+		private Filter[]	_filters;
+	}
+	public static class AllFilters implements Filter {
+		public AllFilters(Filter... filters) {
+			_filters= filters;
+		}
+		public boolean skip(File path) {
+			for(Filter filter : _filters) {
+				if(!filter.skip(path)) {
+					return false;
+				}
+			}
+			return true;
+		}
+		private Filter[]	_filters;
+	}
 	public Manifest(Reader in) throws IOException {
 		super(in);
 	}
 	public Manifest(File location, Storage parts, Filter filter) throws IOException {
 		super();
 		set("name", location.getName());
-		long	size= _add(location, null, parts, filter);
-		set("size", ""+size);
+		_add(location, null, parts, filter);
 	}
 	public boolean equals(Object obj) {
 		if(obj instanceof Ini) {
@@ -92,23 +118,20 @@ public class Manifest extends Ini {
 	private static final boolean	_link= Link.available();
 	private static final String		_true= "true";
 	private static final String		_false= "false";
-	private static final String[]	_supportedHashes= "MD5,SHA-1".split(","); // ,SHA-256,SHA-384,SHA-512".split(",");
+	private static final String[]	_supportedHashes= "MD5,SHA-1,SHA-256,SHA-384,SHA-512".split(","); // ,SHA-256,SHA-384,SHA-512".split(",");
 	private static final String		_dateFormat= "yyyy/MM/dd,hh-mm-ss";
-	private long _add(File location, String section, Storage parts, Filter filter) throws IOException {
-		long	size= 0;
+	private void _add(File location, String section, Storage parts, Filter filter) throws IOException {
 		Stat	info= new Stat(location);
 		boolean	isLink= _handleLinks(location, info, section);
 		_handleXattr(location, section);
 		_handleNodeFlags(info, section);
 		if(!isLink) {
 			if(info.directory()) {
-				size= _handleDirectory(location, section, parts, filter);
+				_handleDirectory(location, section, parts, filter);
 			} else if(info.file()) {
 				_handleFile(location, info, section, parts);
-				size= location.length();
 			}
 		}
-		return size;
 	}
 	private static final String	kHexDigits= "0123456789abcdef";
 	private static String _hashToHexString(byte[] hash, int bytes) {
@@ -129,8 +152,6 @@ public class Manifest extends Ini {
 	}
 	private static long last= System.nanoTime();
 	private void _handleFile(File location, Stat info, String section, Storage parts) throws IOException {
-		set(section, "size", ""+info.size());
-
 		MessageDigest[]	globalHashes= new MessageDigest[_supportedHashes.length];
 		MessageDigest[]	chunkHashes= new MessageDigest[_supportedHashes.length];
 		String[]		hashes= new String[_supportedHashes.length];
@@ -138,8 +159,12 @@ public class Manifest extends Ini {
 		FileInputStream	in= new FileInputStream(location);
 		byte[]			buffer= new byte[1024 * 1024];
 		int				amountRead;
+		long			totalRead= 0;
 		int				lastRead= 0;
 		int				blocks= 0;
+		long			carriageReturnCount= 0;
+		long			lineFeedCount= 0;
+		long			nullCount= 0;
 
 		for(int h= 0; h < _supportedHashes.length; ++h) {
 			try	{
@@ -158,10 +183,20 @@ public class Manifest extends Ini {
 
 		do	{
 			amountRead= in.read(buffer);
+			totalRead+= amountRead;
+			for(int b= 0; b < amountRead; ++b) {
+				if(buffer[b] == '\r') {
+					++carriageReturnCount;
+				} else if(buffer[b] == '\n') {
+					++lineFeedCount;
+				} else if(buffer[b] == '\0') {
+					++nullCount;
+				}
+			}
 			if(amountRead > 0) {
 				String	key;
-				++blocks;
 
+				++blocks;
 				for(int h= 0; h < _supportedHashes.length; ++h) {
 					int	digestSizeRequired= globalHashes[h].getDigestLength();
 
@@ -181,11 +216,11 @@ public class Manifest extends Ini {
 							hashes[h]= "0";
 						}
 						if(null == partList[h]) {
-							partList[h]= ""+amountRead+":"+hashes[h];
+							partList[h]= ""+amountRead+"-"+hashes[h];
 						} else if(lastRead != amountRead) {
-							partList[h]= ";"+amountRead+":"+hashes[h];
+							partList[h]+= ";"+amountRead+"-"+hashes[h];
 						} else {
-							partList[h]= ","+hashes[h];
+							partList[h]+= ","+hashes[h];
 						}
 					} else {
 						hashes[h]= "";
@@ -198,6 +233,25 @@ public class Manifest extends Ini {
 				}
 			}
 		} while(amountRead >= 0);
+		String	type= "";
+
+		if( (nullCount == 0) && ( (carriageReturnCount > 0) || (lineFeedCount > 0) ) ) { // possibly text
+			if( (carriageReturnCount == 0) && (lineFeedCount > 0) ) {
+				type= "_unix";
+			} else if( (carriageReturnCount > 0) && (lineFeedCount == 0) ) {
+				type= "_mac";
+			} else {
+				long	dosDifferentialRatio= 100 * (carriageReturnCount - lineFeedCount) / (lineFeedCount + carriageReturnCount);
+
+				if(Math.abs(dosDifferentialRatio) < 50) {
+					type= "_dos";
+				} else if(dosDifferentialRatio > 0) {
+					type= "_max";
+				} else {
+					type= "_unix";
+				}
+			}
+		}
 		for(int h= 0; h < _supportedHashes.length; ++h) {
 			int	digestSizeRequired= globalHashes[h].getDigestLength();
 
@@ -207,18 +261,18 @@ public class Manifest extends Ini {
 			try	{
 				digestSize= globalHashes[h].digest(digest, 0, digest.length);
 
-				set(section, _supportedHashes[h], _hashToHexString(digest, digestSize));
+				set(section, _supportedHashes[h]+type, _hashToHexString(digest, digestSize));
 				if(blocks > 1) {
-					set(section, "parts_"+_supportedHashes[h], partList[h]);
+					set(section, "parts_"+_supportedHashes[h]+type, partList[h]);
 				}
 			} catch(DigestException exception) {
 				// can't seem to get the hash
 			}
 		}
+		set(section, "size"+type, ""+info.size());
 	}
-	private long _handleDirectory(File location, String section, Storage parts, Filter filter) throws IOException {
+	private void _handleDirectory(File location, String section, Storage parts, Filter filter) throws IOException {
 		String	prefix;
-		long	size= 0;
 		String	sectionName= section;
 
 		if(null == sectionName) {
@@ -231,11 +285,9 @@ public class Manifest extends Ini {
 			File	path= new File(location, item);
 
 			if( (null == filter) || !filter.skip(path) ) {
-				size+= _add(path, sectionName+prefix+item, parts, filter);
+				_add(path, sectionName+prefix+item, parts, filter);
 			}
 		}
-		set(section, "size",""+size);
-		return size;
 	}
 	private void _handleUnixFlags(String section, String name, Stat info, int flag, boolean supported, boolean printedValue) {
 		if(supported) {
