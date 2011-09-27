@@ -78,10 +78,12 @@ public class NetworkBootStrapServer implements SocketServer.Handler {
 			if(!file.isFile()) {
 				String[]	elements= name.split(".");
 
-				elements[elements.length - 1]= elements[elements.length - 1]+".class";
-				file= _directory;
-				for(String element : elements) {
-					file= new File(file, element);
+				if(elements.length > 1) {
+					elements[elements.length - 1]= elements[elements.length - 1]+".class";
+					file= _directory;
+					for(String element : elements) {
+						file= new File(file, element);
+					}
 				}
 			}
 			if(!file.isFile()) {

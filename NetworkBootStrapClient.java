@@ -2,10 +2,15 @@ import java.net.Socket;
 import java.util.HashMap;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.io.InputStream;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.lang.reflect.Method;
 import java.lang.reflect.InvocationTargetException;
+import java.util.jar.Manifest;
+import java.util.jar.Attributes;
+import java.net.URISyntaxException;
+import java.util.jar.JarFile;
 
 /** Minimal class to load the rest of a project across the network.
 	<p><b>Class Set Revisions</b><br>
@@ -206,6 +211,38 @@ public class NetworkBootStrapClient extends ClassLoader {
 		String					last= null;
 		NetworkBootStrapClient	client= null;
 
+		try	{
+			String		jarPath= NetworkBootStrapClient.class.getProtectionDomain().getCodeSource().getLocation().toURI().getRawPath();
+			JarFile		jar= new JarFile(jarPath);
+			Manifest	jarManifest= jar.getManifest();
+			Attributes	manifestData= jarManifest.getMainAttributes();
+			String					value;
+
+			value= manifestData.getValue("server");
+			if(null != value) {
+				server= value;
+			}
+			value= manifestData.getValue("class");
+			if(null != value) {
+				className= value;
+			}
+			value= manifestData.getValue("method");
+			if(null != value) {
+				methodName= value;
+			}
+			value= manifestData.getValue("port");
+			if(null != value) {
+				port= Integer.parseInt(value);
+			}
+			value= manifestData.getValue("revision");
+			if(null != value) {
+				revision= Integer.parseInt(value);
+			}
+		} catch(IOException exception7) {
+			exception7.printStackTrace();
+		} catch(URISyntaxException exception8) {
+			exception8.printStackTrace();
+		}
 		for(String arg : args) {
 			if(null != last) {
 				if(last.equals("-server")) {
