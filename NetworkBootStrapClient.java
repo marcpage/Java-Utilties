@@ -12,12 +12,15 @@ import java.lang.reflect.InvocationTargetException;
 	<ul>
 		<li><b>Send</b>:	"revision?"<br>
 			<b>Receive</b>:	<revision Int>
-			
+
 		<li><b>Send</b>:	"NetworkBootStrap"<protocol version Int><requested revision Int>
 			<b>Receive</b>:	<revision assigned Int>
-			
+
 		<li><b>Send</b>:	"load""<name>"<revision Int>
 			<b>Receive</b>:	<class size in bytes Int>[<class bytes>]
+
+		<li><b>Send</b>:	"quit"
+			<b>Receive</b>:	"quit"
 	</ul>
 */
 public class NetworkBootStrapClient extends ClassLoader {
@@ -27,10 +30,17 @@ public class NetworkBootStrapClient extends ClassLoader {
 	public Class findClass(String name) throws ClassNotFoundException {
 		return _getClass(name);
 	}
+	public synchronized boolean shutdown() throws IOException {
+		String	quit;
+
+		_out.writeUTF("quit");
+		quit= _in.readUTF();
+		return quit.equals("quit");
+	}
 	public synchronized boolean newVersionAvailable() throws IOException {
 		if(_newVersionAvailable) {
 			int	newest;
-			
+
 			_out.writeUTF("revision?");
 			newest= _in.readInt();
 			_newVersionAvailable= (_revision == newest);
@@ -43,7 +53,7 @@ public class NetworkBootStrapClient extends ClassLoader {
 		_connection= new Socket(_server, _port);
 		_in= new DataInputStream(_connection.getInputStream());
 		_out= new DataOutputStream(_connection.getOutputStream());
-		_classes = new HashMap<String,Class>();
+		_classes = new HashMap<String,Class<?>>();
 		_newVersionAvailable= true;
 		if(revisionRequested <= 0) {
 			revisionRequested= 0;
@@ -54,8 +64,8 @@ public class NetworkBootStrapClient extends ClassLoader {
 		_revision= _in.readInt();
 	}
 	private synchronized Class _getClass(String name) throws ClassNotFoundException {
-		Class	result= (Class)_classes.get(name);
-		
+		Class<?>	result= _classes.get(name);
+
 		if(null != result) {
 			return result;
 		}
@@ -66,17 +76,20 @@ public class NetworkBootStrapClient extends ClassLoader {
 		}
 		return _loadClassFromServer(name);
 	}
-	
+
 	private Class _loadClassFromServer(String name) throws ClassNotFoundException {
 		int		classSize;
 		byte[]	data;
 		Class	result;
-		
+
 		try	{
 			_out.writeUTF("load");
 			_out.writeUTF(name);
 			_out.writeInt(_revision);
 			classSize= _in.readInt();
+			if(0 == classSize) {
+				throw new ClassNotFoundException(name);
+			}
 			data= new byte[classSize];
 			_in.readFully(data);
 			result= defineClass(name, data, 0, data.length);
@@ -86,16 +99,16 @@ public class NetworkBootStrapClient extends ClassLoader {
 		}
 		return result;
 	}
-	static private final int		kNetworkBootStrapProtocolVersion= 1;
-	private int						_revision;
-	private String					_server;
-	private int						_port;
-	private Socket					_connection;
-    private HashMap<String,Class>	_classes;
-    private DataInputStream			_in;
-    private DataOutputStream		_out;
-    private boolean					_newVersionAvailable;
-    
+	static private final int			kNetworkBootStrapProtocolVersion= 1;
+	private int							_revision;
+	private String						_server;
+	private int							_port;
+	private Socket						_connection;
+    private HashMap<String,Class<?>>	_classes;
+    private DataInputStream				_in;
+    private DataOutputStream			_out;
+    private boolean						_newVersionAvailable;
+
 	public static void main(String... args) {
 		String					server= "localhost";
 		int						port= 6277;		// keypad NBSP
@@ -105,8 +118,8 @@ public class NetworkBootStrapClient extends ClassLoader {
 		ArrayList<String>		argsList= new ArrayList<String>(args.length);
 		String[]				argsArray;
 		String					last= null;
-		NetworkBootStrapClient	client;
-		
+		NetworkBootStrapClient	client= null;
+
 		for(String arg : args) {
 			if(null != last) {
 				if(last.equals("-server")) {
@@ -128,6 +141,8 @@ public class NetworkBootStrapClient extends ClassLoader {
 					argsList.add(last);
 					last= arg;
 				}
+			} else {
+				last= arg;
 			}
 		}
 		if(null != last) {
@@ -136,10 +151,10 @@ public class NetworkBootStrapClient extends ClassLoader {
 		argsArray= argsList.toArray(new String[argsList.size()]);
 		try	{
 			while(revision >= 0) {
-				Class	start;
-				Method	go;
-				Object	result;
-				
+				Class<?>	start;
+				Method		go;
+				Object		result;
+
 				client= new NetworkBootStrapClient(server, port, revision);
 				start= client.findClass(className);
 				go= start.getDeclaredMethod(methodName, String[].class);
@@ -156,7 +171,14 @@ public class NetworkBootStrapClient extends ClassLoader {
 			exception4.printStackTrace();
 		} catch(InvocationTargetException exception5) {
 			exception5.printStackTrace();
+		} finally {
+			try	{
+				if(null != client) {
+					client.shutdown();
+				}
+			} catch(IOException exception6) {
+				exception6.printStackTrace();
+			}
 		}
-		
 	}
 }
