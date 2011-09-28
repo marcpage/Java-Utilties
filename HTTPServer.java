@@ -13,7 +13,17 @@ import java.util.Collections;
 /** Handler for http connections to a SocketServer.
 	<b>TODO</b>
 	<ul>
-		<li>handle file upload (and the encoding that goes with it)
+		<li>handle file upload (and the encoding that goes with it)<ul>
+				<li> Add to Handler interface: void handleFile(InputStream file, KeyValueMap headers);
+				<li> Create an InputStream subclass for the file
+		</ul>
+		<li>handle Connection: Keep-Alive/close in the request and response
+		<li>handle compression<ul>
+			<li>Request: Accept-Encoding: gzip
+			<li>Response: Content-Encoding: gzip
+			<li>java.util.zip.GZIPOutputStream
+			<li>java.util.zip.GZIPInputStream
+		</ul>
 	</ul>
 */
 public class HTTPServer implements SocketServer.Handler {
