@@ -11,6 +11,7 @@ import java.util.jar.Manifest;
 import java.util.jar.Attributes;
 import java.net.URISyntaxException;
 import java.util.jar.JarFile;
+import java.io.File;
 
 /** Minimal class to load the rest of a project across the network.
 	<p><b>Class Set Revisions</b><br>
@@ -210,33 +211,36 @@ public class NetworkBootStrapClient extends ClassLoader {
 		String[]				argsArray;
 		String					last= null;
 		NetworkBootStrapClient	client= null;
-
+		
 		try	{
 			String		jarPath= NetworkBootStrapClient.class.getProtectionDomain().getCodeSource().getLocation().toURI().getRawPath();
-			JarFile		jar= new JarFile(jarPath);
-			Manifest	jarManifest= jar.getManifest();
-			Attributes	manifestData= jarManifest.getMainAttributes();
-			String					value;
-
-			value= manifestData.getValue("server");
-			if(null != value) {
-				server= value;
-			}
-			value= manifestData.getValue("class");
-			if(null != value) {
-				className= value;
-			}
-			value= manifestData.getValue("method");
-			if(null != value) {
-				methodName= value;
-			}
-			value= manifestData.getValue("port");
-			if(null != value) {
-				port= Integer.parseInt(value);
-			}
-			value= manifestData.getValue("revision");
-			if(null != value) {
-				revision= Integer.parseInt(value);
+			File		jarFile= new File(jarPath);
+			if(jarFile.isFile()) {
+				JarFile		jar= new JarFile(jarPath);
+				Manifest	jarManifest= jar.getManifest();
+				Attributes	manifestData= jarManifest.getMainAttributes();
+				String					value;
+	
+				value= manifestData.getValue("server");
+				if(null != value) {
+					server= value;
+				}
+				value= manifestData.getValue("class");
+				if(null != value) {
+					className= value;
+				}
+				value= manifestData.getValue("method");
+				if(null != value) {
+					methodName= value;
+				}
+				value= manifestData.getValue("port");
+				if(null != value) {
+					port= Integer.parseInt(value);
+				}
+				value= manifestData.getValue("revision");
+				if(null != value) {
+					revision= Integer.parseInt(value);
+				}
 			}
 		} catch(IOException exception7) {
 			exception7.printStackTrace();
