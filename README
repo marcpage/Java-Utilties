@@ -8,11 +8,15 @@ javac -source 1.5 *.java 2>&1 | edit
 
 mkdir -p /tmp/Java-Utilities/tests/NetworkBootStrapClient
 echo "class: Xattr" > /tmp/Java-Utilities/tests/NetworkBootStrapClient/man
+echo "class_i386: Ini" >> /tmp/Java-Utilities/tests/NetworkBootStrapClient/man
 echo "method: main" >> /tmp/Java-Utilities/tests/NetworkBootStrapClient/man
 echo "revision: 1" >> /tmp/Java-Utilities/tests/NetworkBootStrapClient/man
 
 jar -cvfem /tmp/Java-Utilities/tests/NetworkBootStrapClient/classes.jar NetworkBootStrapClient /tmp/Java-Utilities/tests/NetworkBootStrapClient/man NetworkBootStrapClient.class
 pack200 -r -G -E9 /tmp/Java-Utilities/tests/NetworkBootStrapClient/classes.jar
 echo "*** NOTE *** We are expecting: IllegalArgumentException: wrong number of arguments"
+java NetworkBootStrapServer $PWD&
 java -jar /tmp/Java-Utilities/tests/NetworkBootStrapClient/classes.jar
+java -d32 -jar /tmp/Java-Utilities/tests/NetworkBootStrapClient/classes.jar
+kill `ps axww | grep NetworkBootStrap[S]erver | cut -d' ' -f 1`
 

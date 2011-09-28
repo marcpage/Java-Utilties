@@ -11,6 +11,7 @@ import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.lang.reflect.Method;
 import java.util.jar.Attributes;
+import java.rmi.RMISecurityManager;
 import java.net.URISyntaxException;
 import java.lang.reflect.InvocationTargetException;
 
@@ -186,6 +187,49 @@ public class NetworkBootStrapClient extends ClassLoader {
     /** Once we determine we're out of date, we just cache that and don't ask again. */
     private boolean						_newVersionAvailable;
 
+	private static int _getValue(Attributes manifestData, String name, int defaultValue) {
+		String	value= manifestData.getValue(name);
+
+		if(null != value) {
+			return Integer.parseInt(value);
+		}
+		return defaultValue;
+	}
+	private static String _getValue(Attributes manifestData, String name, String defaultValue) {
+		String	value= manifestData.getValue(name);
+
+		if(null != value) {
+			return value;
+		}
+		return defaultValue;
+	}
+	private static String _getSuffix(String environment) {
+		if(environment.length() > 0) {
+			String	environmentValue= System.getProperties().getProperty(environment, (String)null);
+
+			if(null != environmentValue) {
+				return "_"+environmentValue.replace(" ","_").replace(".","_");
+			}
+		}
+		return "";
+	}
+	private static void _installPolicy(String path) {
+		String	policyPath= NetworkBootStrapClient.class.getClassLoader().getResource(path).toString();
+
+		System.setProperty("java.security.policy", policyPath);
+		System.setSecurityManager(new RMISecurityManager());
+	}
+	private static Attributes _getJarManifestAttributes() throws URISyntaxException, IOException {
+		String		jarPath= NetworkBootStrapClient.class.getProtectionDomain().getCodeSource().getLocation().toURI().getRawPath();
+		File		jarFile= new File(jarPath);
+		if(jarFile.isFile()) {
+			JarFile		jar= new JarFile(jarPath);
+			Manifest	jarManifest= jar.getManifest();
+
+			return jarManifest.getMainAttributes();
+		}
+		return null;
+	}
 	/** Starts a connection to a NetworkBootStrapServer and starts a class from it.
 		<p><b>In the Manifest you can "pass parameters." Remove the hyphen from the argument switch
 				and you can set that as a key in the manifest. You can also have a special value based
@@ -219,57 +263,30 @@ public class NetworkBootStrapClient extends ClassLoader {
 	*/
 	public static void main(String... args) {
 		String					server= "localhost";
-		int						port= 6277;		// keypad NBSP
+		int						port= 6277;		// phone keypad NBSP
 		int						revision= 0;	// 0 == latest
 		String					className= "Start";
 		String					methodName= "start";
+		String					policyPath= null;
 		ArrayList<String>		argsList= new ArrayList<String>(args.length);
 		String[]				argsArray;
 		String					last= null;
 		NetworkBootStrapClient	client= null;
-		Properties				systemProperties= System.getProperties();
 
 		try	{
-			String		jarPath= NetworkBootStrapClient.class.getProtectionDomain().getCodeSource().getLocation().toURI().getRawPath();
-			File		jarFile= new File(jarPath);
-			if(jarFile.isFile()) {
-				JarFile		jar= new JarFile(jarPath);
-				Manifest	jarManifest= jar.getManifest();
-				Attributes	manifestData= jarManifest.getMainAttributes();
-				String					value;
+			Attributes	manifestData= _getJarManifestAttributes();
 
+			if(null != manifestData) {
 				for(String environment : kSystemProperties) {
-					String	suffix= "";
+					String	suffix= _getSuffix(environment);
+					String	value;
 
-					if(environment.length() > 0) {
-						String	environmentValue= systemProperties.getProperty(environment, (String)null);
-
-						if(null != environmentValue) {
-							suffix= "_"+environmentValue.replace(" ","_").replace(".","_");
-							//System.out.println(environment+"="+environmentValue+"("+suffix+")");
-						}
-					}
-					//System.out.println("["+suffix+"]");
-					value= manifestData.getValue("server"+suffix);
-					if(null != value) {
-						server= value;
-					}
-					value= manifestData.getValue("class"+suffix);
-					if(null != value) {
-						className= value;
-					}
-					value= manifestData.getValue("method"+suffix);
-					if(null != value) {
-						methodName= value;
-					}
-					value= manifestData.getValue("port"+suffix);
-					if(null != value) {
-						port= Integer.parseInt(value);
-					}
-					value= manifestData.getValue("revision"+suffix);
-					if(null != value) {
-						revision= Integer.parseInt(value);
-					}
+					server=		_getValue(manifestData, "server"+suffix,	server);
+					className=	_getValue(manifestData, "class"+suffix,		className);
+					methodName=	_getValue(manifestData, "method"+suffix,	methodName);
+					revision=	_getValue(manifestData, "revision"+suffix,	revision);
+					port=		_getValue(manifestData, "port"+suffix,		port);
+					policyPath=	_getValue(manifestData, "policy"+suffix,	policyPath);
 					value= manifestData.getValue("arguments"+suffix);
 					if(null != value) {
 						String[]	arguments= value.split(",");
@@ -296,6 +313,9 @@ public class NetworkBootStrapClient extends ClassLoader {
 				} else if(last.equals("-method")) {
 					methodName= arg;
 					last= null;
+				} else if(last.equals("-policy")) {
+					policyPath= arg;
+					last= null;
 				} else if(last.equals("-port")) {
 					port= Integer.parseInt(arg);
 					last= null;
@@ -309,6 +329,9 @@ public class NetworkBootStrapClient extends ClassLoader {
 			} else {
 				last= arg;
 			}
+		}
+		if(null != policyPath) {
+			_installPolicy(policyPath);
 		}
 		if(null != last) {
 			argsList.add(last);
