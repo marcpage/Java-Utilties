@@ -1,15 +1,17 @@
-import java.util.Arrays;  
+import java.util.Arrays;
 import java.io.InputStream;
 import java.io.IOException;
 
 /** Executes a system call.
 	Intended to be subclassed.
-	<b>TODO</b>
+	<p><b>TODO</b>
 	<ul>
 		<li>Test
 	</ul>
 */
 public class SystemCall {
+	/** Does nothing.
+	*/
 	public SystemCall() {
 	}
 	/** Executes a command, and gets merged stderr and stdout.
@@ -25,7 +27,7 @@ public class SystemCall {
 		String			results= "";
 		byte[]			data= new byte[4096];
 		InputStream		in;
-		
+
 		pb.redirectErrorStream(true);
 		proc= pb.start();
 		in= proc.getInputStream();

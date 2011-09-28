@@ -11,14 +11,14 @@ public class CircularByteBuffer {
 	}
 	/** Erases all bytes in the buffer.
 	*/
-	void clear() {
+	public void clear() {
 		_start= 0;
 		_size= 0;
 	}
 	/** Returns an array for the last <code>size</code> bytes sent to the buffer.
 		@return	The bytes in the order they were received.
 	*/
-	byte[] array() {
+	public byte[] array() {
 		byte[]	result= new byte[_size];
 		int		firstCopySize= _size;
 
@@ -34,7 +34,7 @@ public class CircularByteBuffer {
 	/** Put a single byte on the end of the buffer.
 		@param b	The byte to append.
 	*/
-	CircularByteBuffer put(byte b) {
+	public CircularByteBuffer put(byte b) {
 		if(_size == _bytes.length) { // buffer full, just move start
 			_bytes[_start]= b;
 			++_start;
@@ -53,14 +53,14 @@ public class CircularByteBuffer {
 		@param c	Must fit within a byte. appended to the buffer.
 		@return		<code>this</code> is returned to do a series of commands
 	*/
-	CircularByteBuffer put(char c) {
+	public CircularByteBuffer put(char c) {
 		return put((byte)c);
 	}
 	/** Append an array of bytes to the buffer.
 		@param src	The bytes to append. Same effect as for(byte b : src) {put(b);}
 		@return		<code>this</code> is returned to do a series of commands
 	*/
-	CircularByteBuffer put(byte[] src) {
+	public CircularByteBuffer put(byte[] src) {
 		return put(src, 0, src.length);
 	}
 	/** Append an array of bytes to the buffer.
@@ -69,7 +69,7 @@ public class CircularByteBuffer {
 		@param length	The number of bytes in <code>src</code> to append
 		@return			<code>this</code> is returned to do a series of commands
 	*/
-	CircularByteBuffer put(byte[] src, int offset, int length) {
+	public CircularByteBuffer put(byte[] src, int offset, int length) {
 		if(length >= _bytes.length) { // asked to save more than the buffer
 			clear();	// reset buffer and just store the tail
 			offset+= (length - _bytes.length); // skip the beginning bytes

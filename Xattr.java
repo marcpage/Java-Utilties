@@ -7,7 +7,7 @@ import java.util.regex.Pattern;
 import java.util.regex.Matcher;
 
 /** Get the xattr's of files on systems that support it.
-	<b>TODO</b>
+	<p><b>TODO</b>
 	<ul>
 		<li>look into using xattr -l just once on the file
 		<li>look into not using -x, if possible (setting them may not be).

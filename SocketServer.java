@@ -7,7 +7,7 @@ import java.net.ServerSocket;
 import java.util.Vector;
 
 /** Multithreaded, socket based server.
-	<b>TODO</b>
+	<p><b>TODO</b>
 	<ul>
 		<li>Add a constructor that takes expectedConcurrentConnections (current constructor passes _kAverageWorkerThreads)
 	</ul>

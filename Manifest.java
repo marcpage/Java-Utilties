@@ -8,10 +8,10 @@ import java.util.Date;
 import java.text.SimpleDateFormat;
 import java.io.FileInputStream;
 
-/**
+/** Manages uniquely identifying a directory with all its meta-data.
 	See <a href="http://download.oracle.com/javase/1.5.0/docs/guide/security/CryptoSpec.html#AppA">MessageDigest Algorithms</a>
 
-		<b>TODO</b><ul>
+		<p><b>TODO</b><ul>
 			<li>Document
 			<li>Ignore modification date in equals
 			<li>Ignore xattr and link in equals
@@ -28,18 +28,39 @@ import java.io.FileInputStream;
 
 */
 public class Manifest extends Ini {
+	/** A filter to determine if an item is to be used in the manifest when scanning disk.
+	*/
 	public static interface Filter {
+		/** Should we skip this item.
+			@param item	A file or directory that we may need to skip.
+			@return		<code>true</code> if this item (and its children) should not be included in the manifest.
+		*/
 		boolean skip(File item);
 	}
+	/** Filters out files and folders that are hidden on Unix systems (begin with a dot (.)).
+	*/
 	public static class DotDirFilter implements Filter {
+		/** Does its name start with a dot?
+			@param path	The item to test
+			@return		<code>true</code> if the filename starts with a dot (.)
+		*/
 		public boolean skip(File path) {
 			return path.getName().charAt(0) == '.';
 		}
 	}
+	/** Combine a series of filters using OR logic.
+	*/
 	public static class AnyFilter implements Filter {
+		/**
+			@param filters	The filters to OR together
+		*/
 		public AnyFilter(Filter... filters) {
 			_filters= filters;
 		}
+		/** Will skip if any of the filters request to skip.
+			@param path	The path to examine
+			@return		<code>true</code> if any of the filters request to skip this <code>path</code>
+		*/
 		public boolean skip(File path) {
 			for(Filter filter : _filters) {
 				if(filter.skip(path)) {
@@ -50,10 +71,19 @@ public class Manifest extends Ini {
 		}
 		private Filter[]	_filters;
 	}
+	/** Combine a series of filters using AND logic.
+	*/
 	public static class AllFilters implements Filter {
+		/**
+			@param filters	The filters to AND together
+		*/
 		public AllFilters(Filter... filters) {
 			_filters= filters;
 		}
+		/** Will skip iff all of the filters request to skip.
+			@param path	The path to examine
+			@return		<code>true</code> iff all of the filters request to skip this <code>path</code>
+		*/
 		public boolean skip(File path) {
 			for(Filter filter : _filters) {
 				if(!filter.skip(path)) {
@@ -64,14 +94,33 @@ public class Manifest extends Ini {
 		}
 		private Filter[]	_filters;
 	}
+	/** Reads a Minifest from a stream.
+		@param in	The stream to read the manifest from.
+		@throws IOException	on io error
+	*/
 	public Manifest(Reader in) throws IOException {
 		super(in);
 	}
+	/** Creates a Manifest by analyzing a path.
+		@param location		The path (usually a directory) to create a Manifest of.
+		@param parts		The key-store to store hash (key) and contents (value). May be null.
+		@param filter		The object to examine each file or directory to determine if we should
+								exclude it from the manifest. This is to support things like
+								.DS_Store files on Mac or Unix hidden files, etc.
+		@throws IOException	on io error
+	*/
 	public Manifest(File location, Storage parts, Filter filter) throws IOException {
 		super();
 		set("name", location.getName());
 		_add(location, null, parts, filter);
 	}
+	/** Compares this Manifest against another Ini or Manifest.
+		<p><b>TODO</b><ul>
+			<li>Document this behavior better (and improve behavior)
+		</ul>
+		@param obj	The other item to compare against.
+		@return		<code>true</code> if <code>obj</code> is an Ini or Manifest and they are equivalent.
+	*/
 	public boolean equals(Object obj) {
 		if(obj instanceof Ini) {
 			Ini	other= (Ini)obj;
@@ -104,22 +153,45 @@ public class Manifest extends Ini {
 		}
 		return false;
 	}
+	/** Is Xattr available */
 	private static final boolean	_xattr= Xattr.available();
+	/** Does Stat support is executable */
 	private static final boolean	_executable= Stat.available(Stat.IsExecutableMask);
+	/** Does Stat support is opqaque */
 	private static final boolean	_opaque= Stat.available(Stat.IsOpaque);
+	/** Does Stat support is append only */
 	private static final boolean	_append= Stat.available(Stat.IsAppendOnly);
+	/** Does Stat support is no backup */
 	private static final boolean	_backup= Stat.available(Stat.NoBackup);
+	/** Does Stat support is locked */
 	private static final boolean	_locked= Stat.available(Stat.IsLocked);
+	/** Does Stat support created */
 	private static final boolean	_created= Stat.available(Stat.Created);
+	/** Does Stat support is hidden */
 	private static final boolean	_hidden= Stat.available(Stat.IsHidden);
+	/** Does Stat support flags */
 	private static final boolean	_flags= Stat.available(Stat.Flags);
+	/** Does Stat support permissions */
 	private static final boolean	_permissions= Stat.available(Stat.Permissions);
+	/** Does Stat support is link */
 	private static final boolean	_stat_link= Stat.available(Stat.IsLink);
+	/** Are symlinks supported */
 	private static final boolean	_link= Link.available();
+	/** true string used in manifest */
 	private static final String		_true= "true";
+	/** false string used in manifest */
 	private static final String		_false= "false";
+	/** Supported hash names */
 	private static final String[]	_supportedHashes= "MD5,SHA-1,SHA-256,SHA-384,SHA-512".split(","); // ,SHA-256,SHA-384,SHA-512".split(",");
+	/** The date format to write to the manifest */
 	private static final String		_dateFormat= "yyyy/MM/dd,hh-mm-ss";
+	/** Analyzes an item on disk and adds it to the manifest.
+		@param location	The file or directory to add
+		@param section	The directory (relative to the base of this manifest) this item is in, or null for the Manifest root
+		@param parts	The key-store for file contents.
+		@param filter	Filter out unnecessary items from the Manifest
+		@throws IOException	on io error
+	*/
 	private void _add(File location, String section, Storage parts, Filter filter) throws IOException {
 		Stat	info= new Stat(location);
 		boolean	isLink= _handleLinks(location, info, section);
@@ -133,7 +205,13 @@ public class Manifest extends Ini {
 			}
 		}
 	}
+	/** The hex digits to use when output hex data */
 	private static final String	kHexDigits= "0123456789abcdef";
+	/** Converts a hash array to a hex string.
+		@param hash		The hash data
+		@param bytes	The number of bytes in <code>hash</code> that are the hash
+		@return			The hex value of the hash
+	*/
 	private static String _hashToHexString(byte[] hash, int bytes) {
 		char[]	characters= new char[bytes * 2];
 		int		index= 0;
@@ -150,7 +228,13 @@ public class Manifest extends Ini {
 		}
 		return new String(characters);
 	}
-	private static long last= System.nanoTime();
+	/** Handles adding a file to the manifest.
+		@param location	The file to add
+		@param info		The Stat info we've already gotten.
+		@param section	The directory (relative to the base of this manifest) this file is in, or null for the Manifest root
+		@param parts	The key-store for file contents.
+		@throws IOException	on io error
+	*/
 	private void _handleFile(File location, Stat info, String section, Storage parts) throws IOException {
 		MessageDigest[]	globalHashes= new MessageDigest[_supportedHashes.length];
 		MessageDigest[]	chunkHashes= new MessageDigest[_supportedHashes.length];
@@ -271,6 +355,13 @@ public class Manifest extends Ini {
 		}
 		set(section, "size"+type, ""+info.size());
 	}
+	/** Analyzes a directory on disk and adds it to the manifest.
+		@param location	The directory to add
+		@param section	The directory (relative to the base of this manifest) this item is in, or null for the Manifest root
+		@param parts	The key-store for file contents.
+		@param filter	Filter out unnecessary items from the Manifest
+		@throws IOException	on io error
+	*/
 	private void _handleDirectory(File location, String section, Storage parts, Filter filter) throws IOException {
 		String	prefix;
 		String	sectionName= section;
@@ -289,6 +380,15 @@ public class Manifest extends Ini {
 			}
 		}
 	}
+	/** Handles adding a Unix flag to the manifest.
+		@param section		The Manifest root relative path to this item.
+		@param name			The name of the flag
+		@param info			The Stat info for the file or directory
+		@param flag			The value of the flag in the Stat.st_flags
+		@param supported	Is Stat flags supported
+		@param printedValue	If <code>flag</code> is set and this is <code>true</code> then add it to the manifest.
+							If <code>flag</code> is not set and this is <code>false</code> then add it to the manifest.
+	*/
 	private void _handleUnixFlags(String section, String name, Stat info, int flag, boolean supported, boolean printedValue) {
 		if(supported) {
 			int	flags= info.flags();
@@ -305,6 +405,10 @@ public class Manifest extends Ini {
 			}
 		}
 	}
+	/** Handle adding all the flags for a given file or directory to the Manifest.
+		@param info		The Stat info we've already gotten
+		@param section	The Manifest root relative path to this node.
+	*/
 	private void _handleNodeFlags(Stat info, String section) {
 		if(_executable && info.executable()) {
 			set(section, "executable", "true");
@@ -346,6 +450,10 @@ public class Manifest extends Ini {
 		}
 		set(section, "modified", (new SimpleDateFormat(_dateFormat)).format(new Date(info.modified())));
 	}
+	/** Handles adding the the xattr meta-data (for systems that support it) to the manifest.
+		@param location	The path to the file or directory
+		@param section	The Manifest root relative path to the file or directory
+	*/
 	private void _handleXattr(File location, String section) {
 		if(_xattr) {
 			try	{
@@ -361,6 +469,11 @@ public class Manifest extends Ini {
 			}
 		}
 	}
+	/** Handles adding symlinks to the Manifest.
+		@param location	The path to a potential symlink
+		@param info		The Stat info for the potential symlink
+		@param section	The Manifest root relative path to the potential symlink
+	*/
 	private boolean _handleLinks(File location, Stat info, String section) {
 		boolean	isLink= false;
 
@@ -378,6 +491,9 @@ public class Manifest extends Ini {
 		}
 		return isLink;
 	}
+	/** Test.
+		@param args	Paths to files to dump manifests for
+	*/
 	public static void main(String... args) {
 		try	{
 			java.io.OutputStreamWriter	out= new java.io.OutputStreamWriter(System.out);

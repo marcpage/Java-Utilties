@@ -15,7 +15,7 @@ import java.util.regex.Pattern;
 import java.util.NoSuchElementException;
 
 /**
-As documented at: http://en.wikipedia.org/wiki/INI_file
+As documented on <a href="http://en.wikipedia.org/wiki/INI_file">Wikipedia</a>
 
 <br>Any key not in a section is in the "global" (null) section at the beginning of the ini stream.
 

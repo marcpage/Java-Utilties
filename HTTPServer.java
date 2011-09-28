@@ -11,7 +11,7 @@ import java.text.SimpleDateFormat;
 import java.util.Collections;
 
 /** Handler for http connections to a SocketServer.
-	<b>TODO</b>
+	<p><b>TODO</b>
 	<ul>
 		<li>handle file upload (and the encoding that goes with it)<ul>
 				<li> Add to Handler interface: void handleFile(InputStream file, KeyValueMap headers);
