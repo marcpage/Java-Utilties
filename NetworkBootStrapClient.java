@@ -1,17 +1,18 @@
+import java.io.File;
 import java.net.Socket;
 import java.util.HashMap;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.io.InputStream;
+import java.util.Properties;
+import java.util.jar.JarFile;
+import java.util.jar.Manifest;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.lang.reflect.Method;
-import java.lang.reflect.InvocationTargetException;
-import java.util.jar.Manifest;
 import java.util.jar.Attributes;
 import java.net.URISyntaxException;
-import java.util.jar.JarFile;
-import java.io.File;
+import java.lang.reflect.InvocationTargetException;
 
 /** Minimal class to load the rest of a project across the network.
 	<p><b>Class Set Revisions</b><br>
@@ -35,7 +36,6 @@ import java.io.File;
 	</ul>
 	<b>TODO</b>
 	<ul>
-		<li>Look up parameters in the manifest so they don't need to be passed on the command line.
 	</ul>
 	@see NetworkBootStrapServer
 */
@@ -167,6 +167,8 @@ public class NetworkBootStrapClient extends ClassLoader {
 	}
 	/** The protocol version this class implements. */
 	static private final int			kNetworkBootStrapProtocolVersion= 1;
+	/** The suffixes in the Manifest file for parameters. Later values override earlier values, except arguments which is additive. */
+	static private final String[]		kSystemProperties= ",user.country,user.language,os.arch,os.name,os.version,user.name".split(",");
 	/** The revision of the class set that we are currently using. */
 	private int							_revision;
 	/** The server we're connected to. */
@@ -185,6 +187,20 @@ public class NetworkBootStrapClient extends ClassLoader {
     private boolean						_newVersionAvailable;
 
 	/** Starts a connection to a NetworkBootStrapServer and starts a class from it.
+		<p><b>In the Manifest you can "pass parameters." Remove the hyphen from the argument switch
+				and you can set that as a key in the manifest. You can also have a special value based
+				on language, country, processor, OS, OS version or user name. Just append the parameter
+				with the value, for instance:
+		<ul>
+			<li>_US
+			<li>_en
+			<li>_i386 or _x86_64
+			<li>_Mac_OS_X
+			<li>_10_7_1
+			<li>_marcp
+		</ul>
+		<p>So if you set "class_US: LauncherNorthAmerica" then the class would be set the LauncherNorthAmerica
+				when on a US system.
 		@param args	The arguments are:<ul>
 						<li><b>-server</b> <i>Optional</i> The DNS or IP address of the NetworkBootStrapServer.
 											Defaults to <i>localhost</i>.
@@ -211,7 +227,8 @@ public class NetworkBootStrapClient extends ClassLoader {
 		String[]				argsArray;
 		String					last= null;
 		NetworkBootStrapClient	client= null;
-		
+		Properties				systemProperties= System.getProperties();
+
 		try	{
 			String		jarPath= NetworkBootStrapClient.class.getProtectionDomain().getCodeSource().getLocation().toURI().getRawPath();
 			File		jarFile= new File(jarPath);
@@ -220,26 +237,47 @@ public class NetworkBootStrapClient extends ClassLoader {
 				Manifest	jarManifest= jar.getManifest();
 				Attributes	manifestData= jarManifest.getMainAttributes();
 				String					value;
-	
-				value= manifestData.getValue("server");
-				if(null != value) {
-					server= value;
-				}
-				value= manifestData.getValue("class");
-				if(null != value) {
-					className= value;
-				}
-				value= manifestData.getValue("method");
-				if(null != value) {
-					methodName= value;
-				}
-				value= manifestData.getValue("port");
-				if(null != value) {
-					port= Integer.parseInt(value);
-				}
-				value= manifestData.getValue("revision");
-				if(null != value) {
-					revision= Integer.parseInt(value);
+
+				for(String environment : kSystemProperties) {
+					String	suffix= "";
+
+					if(environment.length() > 0) {
+						String	environmentValue= systemProperties.getProperty(environment, (String)null);
+
+						if(null != environmentValue) {
+							suffix= "_"+environmentValue.replace(" ","_").replace(".","_");
+							//System.out.println(environment+"="+environmentValue+"("+suffix+")");
+						}
+					}
+					//System.out.println("["+suffix+"]");
+					value= manifestData.getValue("server"+suffix);
+					if(null != value) {
+						server= value;
+					}
+					value= manifestData.getValue("class"+suffix);
+					if(null != value) {
+						className= value;
+					}
+					value= manifestData.getValue("method"+suffix);
+					if(null != value) {
+						methodName= value;
+					}
+					value= manifestData.getValue("port"+suffix);
+					if(null != value) {
+						port= Integer.parseInt(value);
+					}
+					value= manifestData.getValue("revision"+suffix);
+					if(null != value) {
+						revision= Integer.parseInt(value);
+					}
+					value= manifestData.getValue("arguments"+suffix);
+					if(null != value) {
+						String[]	arguments= value.split(",");
+
+						for(String argument : arguments) {
+							argsList.add(argument);
+						}
+					}
 				}
 			}
 		} catch(IOException exception7) {

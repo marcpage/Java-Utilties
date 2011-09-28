@@ -71,13 +71,15 @@ public class NetworkBootStrapServer implements SocketServer.Handler {
 			byte[]					buffer;
 			int						size;
 
+			log(100, "Loading: "+name+" revision "+revision);
 			if(0 != revision) {
+				log(100, "Bad Revision #: "+name+" revision "+revision);
 				return new byte[0]; // requesting an unknown revision
 			}
 			file= new File(_directory, name.replace(".","$")+".class");
 			if(!file.isFile()) {
 				String[]	elements= name.split(".");
-
+				log(100, name+" is not a straight file");
 				if(elements.length > 1) {
 					elements[elements.length - 1]= elements[elements.length - 1]+".class";
 					file= _directory;
@@ -87,6 +89,7 @@ public class NetworkBootStrapServer implements SocketServer.Handler {
 				}
 			}
 			if(!file.isFile()) {
+				log(100, name+" is not a straight file nor in a package based directory");
 				// try in jar files in zip files, etc.
 			}
 			if(!file.isFile()) {
@@ -97,6 +100,7 @@ public class NetworkBootStrapServer implements SocketServer.Handler {
 			buffer= new byte[4096];
 			do	{
 				size= in.read(buffer);
+				log(100, name+":"+revision+": "+size+" bytes loaded from disk");
 				if(size > 0) {
 					out.write(buffer, 0, size);
 				}
