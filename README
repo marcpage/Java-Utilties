@@ -12,6 +12,7 @@ echo "method: main" >> /tmp/Java-Utilities/tests/NetworkBootStrapClient/man
 echo "revision: 1" >> /tmp/Java-Utilities/tests/NetworkBootStrapClient/man
 
 jar -cvfem /tmp/Java-Utilities/tests/NetworkBootStrapClient/classes.jar NetworkBootStrapClient /tmp/Java-Utilities/tests/NetworkBootStrapClient/man NetworkBootStrapClient.class
+pack200 -r -G -E9 /tmp/Java-Utilities/tests/NetworkBootStrapClient/classes.jar
 echo "*** NOTE *** We are expecting: IllegalArgumentException: wrong number of arguments"
 java -jar /tmp/Java-Utilities/tests/NetworkBootStrapClient/classes.jar
 
