@@ -65,6 +65,10 @@ public class HTTPServer implements SocketServer.Handler {
 				}
 			}
 		}
+		Cookie secondsUntilExpiration(int seconds) {
+			expires= new Date((new Date()).getTime() + seconds * 1000);
+			return this;
+		}
 		/** Formats the cookie for the Cookie http response header
 			@param toBrowser	If true then the string will be formatted as it would be passed to a browser (Set-Cookie: header).
 								If false then the string will be formatted as it would be passed to a server (Cookie: header).
@@ -590,7 +594,7 @@ public class HTTPServer implements SocketServer.Handler {
 
 			HTTPServer.writeResponse(out, "1.1", 200, "OK");
 			HTTPServer.writeHeader(out, "Content-Type", "text/html");
-			HTTPServer.writeHeader(out, new Cookie("name=Nicholas; expires=Sat, 02 May 2009 23:38:25 GMT"));
+			HTTPServer.writeHeader(out, (new Cookie("name=Nicholas")).secondsUntilExpiration(30));
 			HTTPServer.finishHeaders(out);
 			HTTPServer.write(out, "<html><head><title>Echo</title></head><body><h1><center>Echo</center></h1>\r\n");
 			HTTPServer.write(out, "<h2>Cookies</h2>\r\n<ul>");
