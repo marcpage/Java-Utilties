@@ -187,6 +187,13 @@ public class NetworkBootStrapClient extends ClassLoader {
     /** Once we determine we're out of date, we just cache that and don't ask again. */
     private boolean						_newVersionAvailable;
 
+	/** Gets a value from a jar Attributes and a default if it doesn't exist as an int.
+		@param manifestData	The Attributes to examine
+		@param name			The name of the attribute
+		@param defaultValue	The value to return if <code>name</code> is not in <code>manifestData</code>
+		@return				The int value of <code>name</code> or <code>defaultValue</code> if
+								it's not there.
+	*/
 	private static int _getValue(Attributes manifestData, String name, int defaultValue) {
 		String	value= manifestData.getValue(name);
 
@@ -195,6 +202,13 @@ public class NetworkBootStrapClient extends ClassLoader {
 		}
 		return defaultValue;
 	}
+	/** Gets a value from a jar Attributes and a default if it doesn't exist.
+		@param manifestData	The Attributes to examine
+		@param name			The name of the attribute
+		@param defaultValue	The value to return if <code>name</code> is not in <code>manifestData</code>
+		@return				The value of <code>name</code> or <code>defaultValue</code> if
+								it's not there.
+	*/
 	private static String _getValue(Attributes manifestData, String name, String defaultValue) {
 		String	value= manifestData.getValue(name);
 
@@ -203,8 +217,12 @@ public class NetworkBootStrapClient extends ClassLoader {
 		}
 		return defaultValue;
 	}
+	/** Calculate the suffix for a manifest key based on a system property.
+		@param environment	The system property name, or null or empty string for no suffix.
+		@return				Returns empty string or a suffix calculated from the system property.
+	*/
 	private static String _getSuffix(String environment) {
-		if(environment.length() > 0) {
+		if( (null != environment) && (environment.length() > 0) ) {
 			String	environmentValue= System.getProperties().getProperty(environment, (String)null);
 
 			if(null != environmentValue) {
@@ -213,15 +231,26 @@ public class NetworkBootStrapClient extends ClassLoader {
 		}
 		return "";
 	}
+	/** Installs a policy file from resources.
+		Meant to be used from a policy file in a jar.
+		<a href="http://www.javakb.com/Uwe/Forum.aspx/java-security/606/Policy-file-in-a-Jar">Idea from here</a>.
+		@param path name/path for the policy file
+	*/
 	private static void _installPolicy(String path) {
 		String	policyPath= NetworkBootStrapClient.class.getClassLoader().getResource(path).toString();
 
 		System.setProperty("java.security.policy", policyPath);
 		System.setSecurityManager(new RMISecurityManager());
 	}
+	/** Looks up our jar and gets the manifest attributes.
+		@return	The jar Attributes for this class.
+		@throws IOException			on io error
+		@throws URISyntaxException	if we cannot find the manifest for some reason
+	*/
 	private static Attributes _getJarManifestAttributes() throws URISyntaxException, IOException {
 		String		jarPath= NetworkBootStrapClient.class.getProtectionDomain().getCodeSource().getLocation().toURI().getRawPath();
 		File		jarFile= new File(jarPath);
+
 		if(jarFile.isFile()) {
 			JarFile		jar= new JarFile(jarPath);
 			Manifest	jarManifest= jar.getManifest();
@@ -359,6 +388,8 @@ public class NetworkBootStrapClient extends ClassLoader {
 			exception4.printStackTrace();
 		} catch(InvocationTargetException exception5) {
 			exception5.printStackTrace();
+		} catch(IllegalArgumentException exception9) {
+			exception9.printStackTrace();
 		} finally {
 			try	{
 				if(null != client) {
