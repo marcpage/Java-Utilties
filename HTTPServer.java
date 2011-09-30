@@ -459,93 +459,99 @@ public class HTTPServer implements SocketServer.Handler {
 		String			header;
 		InputStream		in= connection.getInputStream();
 		OutputStream	out= connection.getOutputStream();
-		String			statusLine= _readHeaderLine(in);
-		String			statusParts[]= statusLine.split("\\s+", 3);
-		String			version= statusParts[2].split("/",2)[1];
-		String			versionParts[]= version.split("\\.", 2);
-		String			uriParts[];
-		String			lastHeader= null;
-		KeyValuesMap	headers= new KeyValuesMap();
-		KeyValuesMap	query, urlQuery;
-		CookieJar		cookies= new CookieJar();
+		boolean			keepAlive;
 
-		headers.put("METHOD", statusParts[0]);
-		headers.put("REQUEST-URI", statusParts[1]);
-		headers.put("HTTP-VERSION", statusParts[2]);
-		headers.put("VERSION", version);
-		headers.put("MAJOR-VERSION", versionParts[0]);
-		headers.put("MINOR-VERSION", versionParts[1]);
-		log(100, "Method="+statusParts[0]);
-		log(100, "Request-URI="+statusParts[1]);
-		log(100, "HTTP-Version="+statusParts[2]);
-		log(100, "Version="+version);
-		log(100, "Major Version="+versionParts[0]);
-		log(100, "Minor Version="+versionParts[1]);
 		do	{
-			header= _readHeaderLine(in);
-			if(header.length() == 0) {
-				log(100, "End of headers");
-			} else if( (null != lastHeader)
-					&& (header.trim().charAt(0) != header.charAt(0)) ) {
-				String	lastValue= headers.getProperty(lastHeader);
-				String	augmented= lastValue+"\r\n"+header.trim();
+			String			statusLine= _readHeaderLine(in);
+			String			statusParts[]= statusLine.split("\\s+", 3);
+			String			version= statusParts[2].split("/",2)[1];
+			String			versionParts[]= version.split("\\.", 2);
+			String			uriParts[];
+			String			lastHeader= null;
+			KeyValuesMap	headers= new KeyValuesMap();
+			KeyValuesMap	query, urlQuery;
+			CookieJar		cookies= new CookieJar();
 
-				headers.put(lastHeader, augmented);
-				log(100, "Updating header: "+lastHeader);
+			headers.put("METHOD", statusParts[0]);
+			headers.put("REQUEST-URI", statusParts[1]);
+			headers.put("HTTP-VERSION", statusParts[2]);
+			headers.put("VERSION", version);
+			headers.put("MAJOR-VERSION", versionParts[0]);
+			headers.put("MINOR-VERSION", versionParts[1]);
+			log(100, "Method="+statusParts[0]);
+			log(100, "Request-URI="+statusParts[1]);
+			log(100, "HTTP-Version="+statusParts[2]);
+			log(100, "Version="+version);
+			log(100, "Major Version="+versionParts[0]);
+			log(100, "Minor Version="+versionParts[1]);
+			do	{
+				header= _readHeaderLine(in);
+				if(header.length() == 0) {
+					log(100, "End of headers");
+				} else if( (null != lastHeader)
+						&& (header.trim().charAt(0) != header.charAt(0)) ) {
+					String	lastValue= headers.getProperty(lastHeader);
+					String	augmented= lastValue+"\r\n"+header.trim();
+
+					headers.put(lastHeader, augmented);
+					log(100, "Updating header: "+lastHeader);
+				} else {
+					String	headerParts[]= header.split(":", 2);
+
+					lastHeader= headerParts[0].trim();
+					headers.put(lastHeader, headerParts[1].trim());
+					log(100, "Setting header: "+lastHeader);
+				}
+			} while(header.length() > 0);
+			if(headers.containsKey("Cookie")) {
+				for(String cookieSet : headers.get("Cookie")) {
+					cookies.add(new CookieJar(cookieSet));
+				}
+			}
+			if(statusParts[1].indexOf("?") >= 0) {
+				uriParts= statusParts[1].split("\\?", 2);
+				headers.put("PATH", uriParts[0]);
+				headers.put("URL-QUERY", uriParts[1]);
 			} else {
-				String	headerParts[]= header.split(":", 2);
+				headers.put("PATH", statusParts[1]);
+			}
+			if(statusParts[0].equals("POST")) {
+				log(100, "It's a post");
+			}
+			if(headers.getProperty("Content-Length", "").length() > 0) {
+				log(100, "It has a Content-Length:"+headers.getProperty("Content-Length", ""));
+			}
+			if(headers.getProperty("Content-Type", "").length() > 0) {
+				log(100, "It has a Content-Type:"+headers.getProperty("Content-Type", ""));
+			}
+			if(statusParts[0].equals("POST")
+					&& (headers.getProperty("Content-Length", "").length() > 0)
+					&& headers.getProperty("Content-Type", "").equals("application/x-www-form-urlencoded")) {
+				int		length= Integer.parseInt(headers.getProperty("Content-Length"));
+				String	queryString= readBody(in, headers);
 
-				lastHeader= headerParts[0].trim();
-				headers.put(lastHeader, headerParts[1].trim());
-				log(100, "Setting header: "+lastHeader);
+				log(100, "POST QUERY READ: "+queryString);
+				headers.put("NO-BODY", "already-read");
+				headers.put("POST-QUERY", queryString);
 			}
-		} while(header.length() > 0);
-		if(headers.containsKey("Cookie")) {
-			for(String cookieSet : headers.get("Cookie")) {
-				cookies.add(new CookieJar(cookieSet));
+			urlQuery= parseQuery(headers.getProperty("URL-QUERY", ""));
+			query= parseQuery(headers.getProperty("POST-QUERY", ""));
+			query.add(urlQuery);
+			log(100, "Query Details");
+			for(String key : query.keySet()) {
+				log(100, "- "+key);
+				for(String value : query.get(key)) {
+					log(100, "\t+ "+value);
+				}
 			}
-		}
-		if(statusParts[1].indexOf("?") >= 0) {
-			uriParts= statusParts[1].split("\\?", 2);
-			headers.put("PATH", uriParts[0]);
-			headers.put("URL-QUERY", uriParts[1]);
-		} else {
-			headers.put("PATH", statusParts[1]);
-		}
-		if(statusParts[0].equals("POST")) {
-			log(100, "It's a post");
-		}
-		if(headers.getProperty("Content-Length", "").length() > 0) {
-			log(100, "It has a Content-Length:"+headers.getProperty("Content-Length", ""));
-		}
-		if(headers.getProperty("Content-Type", "").length() > 0) {
-			log(100, "It has a Content-Type:"+headers.getProperty("Content-Type", ""));
-		}
-		if(statusParts[0].equals("POST")
-				&& (headers.getProperty("Content-Length", "").length() > 0)
-				&& headers.getProperty("Content-Type", "").equals("application/x-www-form-urlencoded")) {
-			int		length= Integer.parseInt(headers.getProperty("Content-Length"));
-			String	queryString= readBody(in, headers);
-
-			log(100, "POST QUERY READ: "+queryString);
-			headers.put("NO-BODY", "already-read");
-			headers.put("POST-QUERY", queryString);
-		}
-		urlQuery= parseQuery(headers.getProperty("URL-QUERY", ""));
-		query= parseQuery(headers.getProperty("POST-QUERY", ""));
-		query.add(urlQuery);
-		log(100, "Query Details");
-		for(String key : query.keySet()) {
-			log(100, "- "+key);
-			for(String value : query.get(key)) {
-				log(100, "\t+ "+value);
+			if(!_handler.handle(in, out, headers, query, cookies)) {
+				log(100, "Handler requested a shutdown");
+				server.terminate();
 			}
-		}
-		if(!_handler.handle(in, out, headers, query, cookies)) {
-			log(100, "Handler requested a shutdown");
-			server.terminate();
-		}
-		log(100, "Done handling request");
+			log(100, "Done handling request");
+			keepAlive= headers.firstValue("Connection", "close").trim().equalsIgnoreCase("keep-alive");
+		} while(keepAlive);
+		log(100, "Done handling connection");
 	}
 	/** URL escaped charater pattern (ie %20) */
 	private static final Pattern	_URLEscapedPattern= Pattern.compile("%([0-9A-Fa-f][0-9A-Fa-f])");

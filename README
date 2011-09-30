@@ -2,9 +2,9 @@
 # bash -e README
 
 mkdir -p documentation/html/implementation
-javadoc -d documentation/html *.java -quiet -link http://download.oracle.com/javase/1,5.0/docs/api; javadoc -d documentation/html/implementation *.java -private -quiet -link http://download.oracle.com/javase/1,5.0/docs/api
+javadoc -d documentation/html *.java util/*.java -quiet -link http://download.oracle.com/javase/1,5.0/docs/api; javadoc -d documentation/html/implementation *.java -private -quiet -link http://download.oracle.com/javase/1,5.0/docs/api
 
-javac -source 1.5 *.java 2>&1 | edit
+javac -source 1.5 *.java util/*.java 2>&1 | edit
 
 mkdir -p /tmp/Java-Utilities/tests/NetworkBootStrapClient
 echo "class: Xattr" > /tmp/Java-Utilities/tests/NetworkBootStrapClient/man
@@ -19,4 +19,7 @@ java NetworkBootStrapServer $PWD&
 java -jar /tmp/Java-Utilities/tests/NetworkBootStrapClient/classes.jar
 java -d32 -jar /tmp/Java-Utilities/tests/NetworkBootStrapClient/classes.jar
 kill `ps axww | grep NetworkBootStrap[S]erver | cut -d' ' -f 1`
+
+javac inwork/Webdav.java
+#java -cp inwork:. Webdav 8050
 
