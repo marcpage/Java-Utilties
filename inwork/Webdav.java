@@ -10,7 +10,13 @@ import javax.xml.parsers.DocumentBuilderFactory;
 import org.w3c.dom.Document;
 import javax.xml.parsers.ParserConfigurationException;
 import org.xml.sax.SAXException;
-import java.io.ByteArrayInputStream;
+import javax.xml.transform.TransformerFactory;
+import javax.xml.transform.Transformer;
+import javax.xml.transform.stream.StreamResult;
+import javax.xml.transform.dom.DOMSource;
+import javax.xml.transform.OutputKeys;
+import javax.xml.transform.TransformerException;
+import javax.xml.transform.TransformerConfigurationException;
 
 /**
 	<p>References:<ul>
@@ -34,15 +40,14 @@ public class Webdav implements HTTPServer.Handler {
 	public void log(int level, String message) {
 		System.err.println("LOG "+level+": "+message);
 	}
-	private Document _parseXML(String text) throws IOException {
+	private Document _parseXML(InputStream xmlStream) throws IOException {
 		try	{
-			ByteArrayInputStream	in= new ByteArrayInputStream(text.getBytes());
 			DocumentBuilderFactory	factory= DocumentBuilderFactory.newInstance();
 			DocumentBuilder			builder;
 
 			factory.setNamespaceAware(true);
 			builder= factory.newDocumentBuilder();
-			return builder.parse(in);
+			return builder.parse(xmlStream);
 		} catch(ParserConfigurationException exception1) {
 			log(exception1);
 		} catch(SAXException exception2) {
@@ -51,20 +56,6 @@ public class Webdav implements HTTPServer.Handler {
 		return null;
 	}
 	public boolean handle(InputStream in, OutputStream out, HTTPServer.KeyValuesMap headers, HTTPServer.KeyValuesMap query, HTTPServer.CookieJar cookies) throws IOException {
-		int	contentSize= Integer.parseInt(headers.firstValue("Content-Length", "0"));
-		String	body= "";
-		byte[]	buffer= new byte[4096];
-		int		toRead= contentSize > buffer.length ? buffer.length : contentSize;
-		int		read= in.read(buffer, 0, toRead);
-
-		while(contentSize > 0) {
-			contentSize-= read;
-			body+= new String(buffer, 0, read);
-			toRead= contentSize > buffer.length ? buffer.length : contentSize;
-			if(toRead > 0) {
-				read= in.read(buffer, 0, toRead);
-			}
-		}
 		if(!headers.containsKey("Authorization")) {
 			out.write("HTTP/1.1 401 Unauthorized\r\n".getBytes());
 			out.write("Content-Length: 0\r\n".getBytes());
@@ -86,8 +77,17 @@ public class Webdav implements HTTPServer.Handler {
 				out.write("DAV: 1\r\n".getBytes()); // 1,2, addressbook
 				out.write("Allow: PROPFIND, DELETE, MKCOL, PUT, MOVE, COPY, PROPPATCH, LOCK, UNLOCK, REPORT\r\n\r\n".getBytes());
 			} else if(headers.firstValue("METHOD","").equalsIgnoreCase("PROPFIND")) {
-				Document	request= _parseXML(body);
+				Document			request= _parseXML(in);
 
+				try	{
+					TransformerFactory	tf= TransformerFactory.newInstance();
+					Transformer			t= tf.newTransformer();
+
+					t.setOutputProperty(OutputKeys.INDENT, "yes");
+					t.transform(new DOMSource(request), new StreamResult(System.out));
+				} catch(TransformerException exception1) {
+					exception1.printStackTrace();
+				}
 				if(headers.firstValue("PATH","").equals("/")) {
 					byte[]	contents= ("<?xml version=\"1.0\" encoding=\"utf-8\"?>\r\n"
 									+"<D:multistatus xmlns:D=\"DAV:\">\r\n"
@@ -145,7 +145,13 @@ public class Webdav implements HTTPServer.Handler {
 			}
 			System.out.println();
 		}
-		System.out.println(body);
+		byte[]	buffer= new byte[4096];
+		int		read= in.read(buffer);
+
+		while(read > 0) {
+			System.out.write(buffer, 0, read);
+			read= in.read(buffer);
+		}
 
 		/*
 		System.out.println("Body");

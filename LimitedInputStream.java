@@ -7,7 +7,7 @@ import java.io.IOException;
 		<li>Look at supporting mark
 	</ul>
 */
-public class LimitedInputStream {
+public class LimitedInputStream extends InputStream {
 	/**
 		@param in	The underlying stream
 		@param max	The maxmimum number of bytes to read

@@ -457,20 +457,22 @@ public class HTTPServer implements SocketServer.Handler {
 	*/
 	public void handle(SocketServer server, Socket connection) throws IOException {
 		String			header;
-		InputStream		in= connection.getInputStream();
+		InputStream		connectionIn= connection.getInputStream();
 		OutputStream	out= connection.getOutputStream();
 		boolean			keepAlive;
 
 		do	{
-			String			statusLine= _readHeaderLine(in);
-			String			statusParts[]= statusLine.split("\\s+", 3);
-			String			version= statusParts[2].split("/",2)[1];
-			String			versionParts[]= version.split("\\.", 2);
-			String			uriParts[];
-			String			lastHeader= null;
-			KeyValuesMap	headers= new KeyValuesMap();
-			KeyValuesMap	query, urlQuery;
-			CookieJar		cookies= new CookieJar();
+			InputStream			in= connectionIn;
+			String				statusLine= _readHeaderLine(in);
+			String				statusParts[]= statusLine.split("\\s+", 3);
+			String				version= statusParts[2].split("/",2)[1];
+			String				versionParts[]= version.split("\\.", 2);
+			String				uriParts[];
+			String				lastHeader= null;
+			KeyValuesMap		headers= new KeyValuesMap();
+			KeyValuesMap		query, urlQuery;
+			CookieJar			cookies= new CookieJar();
+			LimitedInputStream	bodyStream= null;
 
 			headers.put("METHOD", statusParts[0]);
 			headers.put("REQUEST-URI", statusParts[1]);
@@ -533,6 +535,13 @@ public class HTTPServer implements SocketServer.Handler {
 				log(100, "POST QUERY READ: "+queryString);
 				headers.put("NO-BODY", "already-read");
 				headers.put("POST-QUERY", queryString);
+			} else if(headers.getProperty("Content-Length","").length() > 0) {
+				long	bodyLength= Long.parseLong(headers.getProperty("Content-Length"));
+
+				if(bodyLength > 0) {
+					bodyStream= new LimitedInputStream(in, bodyLength);
+					in= bodyStream;
+				}
 			}
 			urlQuery= parseQuery(headers.getProperty("URL-QUERY", ""));
 			query= parseQuery(headers.getProperty("POST-QUERY", ""));
@@ -544,9 +553,14 @@ public class HTTPServer implements SocketServer.Handler {
 					log(100, "\t+ "+value);
 				}
 			}
+
 			if(!_handler.handle(in, out, headers, query, cookies)) {
 				log(100, "Handler requested a shutdown");
 				server.terminate();
+			}
+			if(null != bodyStream) {
+				long	skipped= bodyStream.finish();
+				log(100, "Body was not fully read by  handler, "+skipped+" bytes were left");
 			}
 			log(100, "Done handling request");
 			keepAlive= headers.firstValue("Connection", "close").trim().equalsIgnoreCase("keep-alive");
