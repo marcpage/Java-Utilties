@@ -152,16 +152,6 @@ public class Webdav implements HTTPServer.Handler {
 			System.out.write(buffer, 0, read);
 			read= in.read(buffer);
 		}
-
-		/*
-		System.out.println("Body");
-		byte[]	buffer= new byte[4096];
-		int		read= in.read(buffer);
-		while(read >= 0) {
-			System.out.write(buffer, 0, read);
-			read= in.read(buffer);
-		}
-		*/
 		return true;
 	}
 	private Pattern	_authenticationPattern= Pattern.compile("Authorization:\\s+Basic\\s+(\\S+)\\s+");

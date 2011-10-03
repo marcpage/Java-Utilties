@@ -535,13 +535,12 @@ public class HTTPServer implements SocketServer.Handler {
 				log(100, "POST QUERY READ: "+queryString);
 				headers.put("NO-BODY", "already-read");
 				headers.put("POST-QUERY", queryString);
-			} else if(headers.getProperty("Content-Length","").length() > 0) {
-				long	bodyLength= Long.parseLong(headers.getProperty("Content-Length"));
+			} else {
+				long	bodyLength= Long.parseLong(headers.getProperty("Content-Length", "0"));
 
-				if(bodyLength > 0) {
-					bodyStream= new LimitedInputStream(in, bodyLength);
-					in= bodyStream;
-				}
+				log(100, "Non-POST BODY length="+bodyLength);
+				bodyStream= new LimitedInputStream(in, bodyLength);
+				in= bodyStream;
 			}
 			urlQuery= parseQuery(headers.getProperty("URL-QUERY", ""));
 			query= parseQuery(headers.getProperty("POST-QUERY", ""));
@@ -560,7 +559,10 @@ public class HTTPServer implements SocketServer.Handler {
 			}
 			if(null != bodyStream) {
 				long	skipped= bodyStream.finish();
-				log(100, "Body was not fully read by  handler, "+skipped+" bytes were left");
+
+				if(skipped > 0) {
+					log(100, "Body was not fully read by  handler, "+skipped+" bytes were left");
+				}
 			}
 			log(100, "Done handling request");
 			keepAlive= headers.firstValue("Connection", "close").trim().equalsIgnoreCase("keep-alive");
