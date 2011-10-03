@@ -17,7 +17,6 @@ import java.util.Collections;
 				<li> Add to Handler interface: void handleFile(InputStream file, KeyValueMap headers);
 				<li> Create an InputStream subclass for the file
 		</ul>
-		<li>handle Connection: Keep-Alive/close in the request and response
 		<li>handle compression<ul>
 			<li>Request: Accept-Encoding: gzip
 			<li>Response: Content-Encoding: gzip
@@ -318,9 +317,18 @@ public class HTTPServer implements SocketServer.Handler {
 	}
 	/** Creates a SocketServer handler that formats the connection for an HTTPServer.Handler.
 		@param handler	The object that handles the http connection
+		@param trace	The stream to document all io traffic
+	*/
+	public HTTPServer(Handler handler, OutputStream trace) {
+		_handler= handler;
+		_trace= trace;
+	}
+	/** Creates a SocketServer handler that formats the connection for an HTTPServer.Handler.
+		@param handler	The object that handles the http connection
 	*/
 	public HTTPServer(Handler handler) {
 		_handler= handler;
+		_trace= null;
 	}
 	/** Log exceptions to the handler.
 		@param exception	The exception to pass on
@@ -460,7 +468,13 @@ public class HTTPServer implements SocketServer.Handler {
 		InputStream		connectionIn= connection.getInputStream();
 		OutputStream	out= connection.getOutputStream();
 		boolean			keepAlive;
+		IOLogger		logger= null;
 
+		if(null != _trace) {
+			logger= new IOLogger(connectionIn, out, ""+nextID(), System.out, true);
+			connectionIn= logger.getInputStream();
+			out= logger.getOutputStream();
+		}
 		do	{
 			InputStream			in= connectionIn;
 			String				statusLine= _readHeaderLine(in);
@@ -571,8 +585,19 @@ public class HTTPServer implements SocketServer.Handler {
 	}
 	/** URL escaped charater pattern (ie %20) */
 	private static final Pattern	_URLEscapedPattern= Pattern.compile("%([0-9A-Fa-f][0-9A-Fa-f])");
+	/** The handle ID */
+	private static int				_handleID= 0;
 	/** The handler to hand off the connection once we've parsed all the http stuff out of it */
-	private Handler	_handler;
+	private Handler					_handler;
+	/** The output stream to send io traces to, or null for no tracing */
+	private OutputStream			_trace;
+
+	/** Gets the next unique handle ID
+	*/
+	private synchronized int nextID() {
+		++_handleID;
+		return _handleID;
+	}
 	/** Reads one line from an http header.
 		It is able to read \n and \r\n that separates lines. It does not, however, handle \r as a line ending.
 		@param in			The http in stream.

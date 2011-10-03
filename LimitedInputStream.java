@@ -87,7 +87,7 @@ public class LimitedInputStream extends InputStream {
 	/** Standard stream close.
 	*/
 	public void close() throws IOException {
-		_in.close();
+		_max= 0;
 	}
 	/**
 		@return	false, mark is not supported.

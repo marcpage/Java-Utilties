@@ -31,7 +31,12 @@ import javax.xml.transform.TransformerConfigurationException;
 
 */
 public class Webdav implements HTTPServer.Handler {
-	public Webdav() {
+	interface Filesystem {
+		String[] list(String path);
+		String property(String path, String property);
+	}
+	public Webdav(Filesystem fs) {
+		_filesystem= fs;
 	}
 	public void log(Exception exception) {
 		exception.printStackTrace();
@@ -40,42 +45,15 @@ public class Webdav implements HTTPServer.Handler {
 	public void log(int level, String message) {
 		System.err.println("LOG "+level+": "+message);
 	}
-	private Document _parseXML(InputStream xmlStream) throws IOException {
-		try	{
-			DocumentBuilderFactory	factory= DocumentBuilderFactory.newInstance();
-			DocumentBuilder			builder;
-
-			factory.setNamespaceAware(true);
-			builder= factory.newDocumentBuilder();
-			return builder.parse(xmlStream);
-		} catch(ParserConfigurationException exception1) {
-			log(exception1);
-		} catch(SAXException exception2) {
-			log(exception2);
-		}
-		return null;
-	}
 	public boolean handle(InputStream in, OutputStream out, HTTPServer.KeyValuesMap headers, HTTPServer.KeyValuesMap query, HTTPServer.CookieJar cookies) throws IOException {
-		if(!headers.containsKey("Authorization")) {
-			out.write("HTTP/1.1 401 Unauthorized\r\n".getBytes());
-			out.write("Content-Length: 0\r\n".getBytes());
-			out.write("Www-Authenticate: Basic realm=\"WebDav\"\r\n".getBytes());
-			//out.write("Date: Fri, 30 Sep 2011 14:46:06 GMT\r\n".getBytes());
-			out.write("Accept-Ranges: bytes\r\n\r\n".getBytes());
-		} else {
-			byte[]		data= Base64.decode(headers.firstValue("Authorization","").split("\\s+")[1]);
-			String[]	namePassword= (new String(data)).split(":");
+		String[]	authentication= _getAuthorization(out, headers);
 
-			log(100, "Username: "+namePassword[0]);
-			log(100, "Password: "+namePassword[1]);
+		if(null != authentication) {
+			log(100, "Username: "+authentication[0]);
+			log(100, "Password: "+authentication[1]);
 
 			if(headers.firstValue("METHOD","").equalsIgnoreCase("OPTIONS")) {
-				out.write("HTTP/1.1 200 OK\r\n".getBytes());
-				out.write("Content-Length: 0\r\n".getBytes());
-				//out.write("Date: Fri, 30 Sep 2011 15:31:45 GMT\r\n".getBytes());
-				out.write("Accept-Ranges: bytes\r\n".getBytes());
-				out.write("DAV: 1\r\n".getBytes()); // 1,2, addressbook
-				out.write("Allow: PROPFIND, DELETE, MKCOL, PUT, MOVE, COPY, PROPPATCH, LOCK, UNLOCK, REPORT\r\n\r\n".getBytes());
+				_handleOptions(out);
 			} else if(headers.firstValue("METHOD","").equalsIgnoreCase("PROPFIND")) {
 				Document			request= _parseXML(in);
 
@@ -154,64 +132,99 @@ public class Webdav implements HTTPServer.Handler {
 		}
 		return true;
 	}
-	private Pattern	_authenticationPattern= Pattern.compile("Authorization:\\s+Basic\\s+(\\S+)\\s+");
-	private Pattern _propfindPattern= Pattern.compile("PROPFIND\\s+(.*)\\s+HTTP/1.1\\s+");
-	public void handle(SocketServer server, Socket connection) throws IOException {
-		System.out.println("Handling new connection on port "+server.port()+" from "+connection);
-		InputStream		in= connection.getInputStream();
-		OutputStream	out= connection.getOutputStream();
-		byte[]			buffer= new byte[4096];
-		int				read= in.read(buffer);
-		while(read >= 0) {
-			String			text= new String(buffer, 0, read);
-			Matcher			isAuthenticating= _authenticationPattern.matcher(text);
+	private static final Pattern	_authenticationPattern= Pattern.compile("Authorization:\\s+Basic\\s+(\\S+)\\s+");
+	private static final Pattern	_propfindPattern= Pattern.compile("PROPFIND\\s+(.*)\\s+HTTP/1.1\\s+");
+	private Filesystem				_filesystem;
+	private boolean _dumpXML(Document xml, OutputStream out) {
+		try	{
+			TransformerFactory	tf= TransformerFactory.newInstance();
+			Transformer			t= tf.newTransformer();
 
-			if(isAuthenticating.find()) {
-				String	authentication= new String(Base64.decode(isAuthenticating.group(1)));
-				Matcher	isPropFind= _propfindPattern.matcher(text);
-
-				System.out.println("Authenticating: "+authentication);
-
-				if(isPropFind.find()) {
-					byte[]	contents= ("<?xml version=\"1.0\" encoding=\"utf-8\"?>\r\n"
-									+"<D:multistatus xmlns:D=\"DAV:\">\r\n"
-									+"<D:response>\r\n"
-									+"<D:href>/bash_history</D:href><D:propstat><D:status>HTTP/1.1 200 OK</D:status><D:prop><D:executable>F</D:executable><D:getcontentlength>16901</D:getcontentlength><D:getlastmodified>2011-09-30 13:16:47 +0000</D:getlastmodified><D:creationdate>2011-09-30 13:16:47 +0000</D:creationdate><D:modificationdate>2011-09-30 13:16:47 +0000</D:modificationdate><D:resourcetype/></D:prop></D:propstat></D:response>\r\n"
-									+"<D:response><D:href>/MacOSX/</D:href><D:propstat><D:status>HTTP/1.1 200 OK</D:status><D:prop><D:getlastmodified>2011-07-08 14:08:57 +0000</D:getlastmodified><D:ishidden>0</D:ishidden><D:getcontenttype>text/plain</D:getcontenttype><D:getcontentlength>0</D:getcontentlength><D:iscollection>1</D:iscollection><D:modificationdate>2011-07-08 14:08:57 +0000</D:modificationdate><D:resourcetype><D:collection/></D:resourcetype></D:prop></D:propstat></D:response>\r\n"
-									+"</D:response></D:multistatus>\r\n").getBytes();
-
-					out.write("HTTP/1.1 207 Multi-Status\r\n".getBytes());
-					out.write(("Content-Length: "+contents.length+"\r\n").getBytes());
-					out.write("Date: Fri, 30 Sep 2011 15:50:15 GMT\r\n".getBytes());
-					out.write("Accept-Ranges: bytes\r\n".getBytes());
-					out.write("Content-Type: text/xml; charset=\"utf-8\"\r\n\r\n".getBytes());
-
-					out.write(contents);
-
-				} else {
-					out.write("HTTP/1.1 200 OK\r\n".getBytes());
-					out.write("Content-Length: 0\r\n".getBytes());
-					out.write("Date: Fri, 30 Sep 2011 15:31:45 GMT\r\n".getBytes());
-					out.write("Accept-Ranges: bytes\r\n".getBytes());
-					out.write("DAV: 1,2, addressbook\r\n".getBytes());
-					out.write("Allow: PROPFIND, DELETE, MKCOL, PUT, MOVE, COPY, PROPPATCH, LOCK, UNLOCK, REPORT\r\n\r\n".getBytes());
-				}
-			} else {
-				System.out.println("No Authentication");
-				out.write("HTTP/1.1 401 Unauthorized\r\n".getBytes());
-				out.write("Content-Length: 0\r\n".getBytes());
-				out.write("Www-Authenticate: Basic realm=\"defaultRealm@host.com\"\r\n".getBytes());
-				out.write("Date: Fri, 30 Sep 2011 14:46:06 GMT\r\n".getBytes());
-				out.write("Accept-Ranges: bytes\r\n\r\n".getBytes());
-			}
-			System.out.write(buffer, 0, read);
-			read= in.read(buffer);
+			t.setOutputProperty(OutputKeys.INDENT, "yes");
+			t.transform(new DOMSource(xml), new StreamResult(System.out));
+			return true;
+		} catch(TransformerException exception1) {
+			exception1.printStackTrace();
 		}
+		return false;
+	}
+	private void _handlePropFind(InputStream in, OutputStream out, HTTPServer.KeyValuesMap headers) throws IOException{
+		Document			request= _parseXML(in);
+
+		System.out.println("[[");
+		_dumpXML(request, System.out);
+		System.out.println("]]");
+		if(headers.firstValue("PATH","").equals("/")) {
+			byte[]	contents= ("<?xml version=\"1.0\" encoding=\"utf-8\"?>\r\n"
+							+"<D:multistatus xmlns:D=\"DAV:\">\r\n"
+							+"<D:response>\r\n"
+							+"<D:href>/bash_history</D:href><D:propstat><D:status>HTTP/1.1 200 OK</D:status><D:prop><D:executable>F</D:executable><D:getcontentlength>16901</D:getcontentlength><D:getlastmodified>2011-09-30 13:16:47 +0000</D:getlastmodified><D:creationdate>2011-09-30 13:16:47 +0000</D:creationdate><D:modificationdate>2011-09-30 13:16:47 +0000</D:modificationdate><D:resourcetype/></D:prop></D:propstat></D:response>\r\n"
+							+"<D:response><D:href>/MacOSX/</D:href><D:propstat><D:status>HTTP/1.1 200 OK</D:status><D:prop><D:getlastmodified>2011-07-08 14:08:57 +0000</D:getlastmodified><D:ishidden>0</D:ishidden><D:getcontenttype>text/plain</D:getcontenttype><D:getcontentlength>0</D:getcontentlength><D:iscollection>1</D:iscollection><D:modificationdate>2011-07-08 14:08:57 +0000</D:modificationdate><D:resourcetype><D:collection/></D:resourcetype></D:prop></D:propstat></D:response>\r\n"
+							+"</D:response></D:multistatus>\r\n").getBytes();
+
+			log(100, "Listng path: "+headers.firstValue("PATH",""));
+			out.write("HTTP/1.1 207 Multi-Status\r\n".getBytes());
+			out.write(("Content-Length: "+contents.length+"\r\n").getBytes());
+			out.write("Date: Fri, 30 Sep 2011 15:50:15 GMT\r\n".getBytes());
+			out.write("Accept-Ranges: bytes\r\n".getBytes());
+			out.write("Content-Type: text/xml; charset=\"utf-8\"\r\n\r\n".getBytes());
+
+			out.write(contents);
+		} else {
+			out.write("HTTP/1.1 404 Not Found\r\n".getBytes());
+			out.write("Content-Length: 0\r\n".getBytes());
+			//out.write("Date: Fri, 30 Sep 2011 15:31:45 GMT\r\n".getBytes());
+			out.write("Accept-Ranges: bytes\r\n".getBytes());
+		}
+	}
+	private Document _parseXML(InputStream xmlStream) throws IOException {
+		try	{
+			DocumentBuilderFactory	factory= DocumentBuilderFactory.newInstance();
+			DocumentBuilder			builder;
+
+			factory.setNamespaceAware(true);
+			builder= factory.newDocumentBuilder();
+			return builder.parse(xmlStream);
+		} catch(ParserConfigurationException exception1) {
+			log(exception1);
+		} catch(SAXException exception2) {
+			log(exception2);
+		}
+		return null;
+	}
+	private void _noAuthorize(OutputStream out) throws IOException {
+		out.write("HTTP/1.1 401 Unauthorized\r\n".getBytes());
+		out.write("Content-Length: 0\r\n".getBytes());
+		out.write("Www-Authenticate: Basic realm=\"WebDav\"\r\n".getBytes());
+		//out.write("Date: Fri, 30 Sep 2011 14:46:06 GMT\r\n".getBytes());
+		out.write("Accept-Ranges: bytes\r\n\r\n".getBytes());
+	}
+	private String[] _getAuthorization(OutputStream out, HTTPServer.KeyValuesMap headers) throws IOException {
+		if(!headers.containsKey("Authorization")) {
+			_noAuthorize(out);
+		} else {
+			byte[]		data= Base64.decode(headers.firstValue("Authorization","").split("\\s+")[1]);
+			String[]	namePassword= (new String(data)).split(":", 2);
+
+			return namePassword;
+		}
+		return null;
+	}
+	private void _handleOptions(OutputStream out) throws IOException {
+		out.write("HTTP/1.1 200 OK\r\n".getBytes());
+		out.write("Content-Length: 0\r\n".getBytes());
+		//out.write("Date: Fri, 30 Sep 2011 15:31:45 GMT\r\n".getBytes());
+		out.write("Accept-Ranges: bytes\r\n".getBytes());
+		out.write("DAV: 1\r\n".getBytes()); // 1,2, addressbook
+		out.write("Allow: PROPFIND, DELETE, MKCOL, PUT, MOVE, COPY, PROPPATCH, LOCK, UNLOCK, REPORT\r\n\r\n".getBytes());
 	}
 	public static void main(String... args) {
 		try	{
-			new SocketServer(Integer.parseInt(args[0]), new HTTPServer(new Webdav()));
-			//new SocketServer(Integer.parseInt(args[0]), new Webdav());
+			if(args.length > 1) {
+				new SocketServer(Integer.parseInt(args[0]), new HTTPServer(new Webdav(null), System.out));
+			} else {
+				new SocketServer(Integer.parseInt(args[0]), new HTTPServer(new Webdav(null)));
+			}
 		} catch(IOException exception) {
 			System.err.println(exception);
 		}

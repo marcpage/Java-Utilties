@@ -98,14 +98,7 @@ public class SocketServer extends Thread {
 		@param instance	The object to handle connections.
 	*/
 	public SocketServer(int port, Handler instance) throws IOException {
-		_done= false;
-		_instance= instance;
-		_port= port;
-		_log(100, "Listening on port "+_port);
-		_idleWorkers= new Vector<Worker>(_kAverageWorkerThreads);
-		_log(100, "Average simultaneous connections expected= "+_kAverageWorkerThreads);
-		_listen= new ServerSocket(port);
-		start();
+		_init(port, instance);
 	}
 	/** The port we are listening on.
 		@return	The port we are listening on
@@ -290,6 +283,16 @@ public class SocketServer extends Thread {
 	private Vector<Worker>	_idleWorkers;
 	/** Are we shutting down */
 	private boolean			_done;
+	private void _init(int port, Handler instance) throws IOException {
+		_done= false;
+		_instance= instance;
+		_port= port;
+		_log(100, "Listening on port "+_port);
+		_idleWorkers= new Vector<Worker>(_kAverageWorkerThreads);
+		_log(100, "Average simultaneous connections expected= "+_kAverageWorkerThreads);
+		_listen= new ServerSocket(port);
+		start();
+	}
 	/** Test class that echos anything sent to it.
 	*/
 	private static class Echo implements Handler {
