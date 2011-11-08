@@ -23,3 +23,4 @@ kill `ps axww | grep NetworkBootStrap[S]erver | cut -d' ' -f 1`
 javac inwork/Webdav.java
 #java -cp inwork:. Webdav 8050
 
+java BlockingQueue | wc -l; java BlockingQueue | sort| uniq | wc -l
