@@ -451,6 +451,13 @@ public class HTTPServer implements SocketServer.Handler {
 		}
 		return new String(SocketServer.read(in, 500 /* timeout in ms */, length, -1 /* pick buffer size */));
 	}
+	/** Closes the connection when done here, ignoring the Connection: keep-alive header
+	*/
+	public static void CloseConnection(KeyValuesMap headers) {
+		if(headers.containsKey("Connection")) {
+			headers.remove("Connection"); // Even if they requested a keep-alive, we're done now
+		}
+	}
 	/** Handles the Socket Server incoming request.
 		Sets common CGI environment variables in the properties
 			(METHOD, REQUEST-URI, HTTP-VERSION, VERSION, MAJOR-VERSION, MINOR-VERSION, PATH, URL-QUERY (optional)).
@@ -478,7 +485,9 @@ public class HTTPServer implements SocketServer.Handler {
 		do	{
 			InputStream			in= connectionIn;
 			String				statusLine= _readHeaderLine(in);
+			log(100, "statusLine='"+statusLine+"'");
 			String				statusParts[]= statusLine.split("\\s+", 3);
+			log(100, "statusParts#="+statusParts.length);
 			String				version= statusParts[2].split("/",2)[1];
 			String				versionParts[]= version.split("\\.", 2);
 			String				uriParts[];
@@ -580,8 +589,19 @@ public class HTTPServer implements SocketServer.Handler {
 			}
 			log(100, "Done handling request");
 			keepAlive= headers.firstValue("Connection", "close").trim().equalsIgnoreCase("keep-alive");
+			log(100, "Connection='"+headers.firstValue("Connection", "close")+"'");
 		} while(keepAlive);
 		log(100, "Done handling connection");
+		try	{
+			connectionIn.close();
+		} catch(IOException exception) {
+			log(exception);
+		}
+		try	{
+			out.close();
+		} catch(IOException exception) {
+			log(exception);
+		}
 	}
 	/** URL escaped charater pattern (ie %20) */
 	private static final Pattern	_URLEscapedPattern= Pattern.compile("%([0-9A-Fa-f][0-9A-Fa-f])");
@@ -677,6 +697,7 @@ public class HTTPServer implements SocketServer.Handler {
 			HTTPServer.write(out, "POST<form action=/test/me?test=5&something=6&something=7 method=POST><input name=test><input name=something><input type=submit></form>");
 			HTTPServer.write(out, "<form action=/quit method=POST><input type=submit value=Quit></form>");
 			HTTPServer.write(out, "</body></html>\r\n");
+			CloseConnection(headers);
 			return !(headers.getProperty("PATH","").equalsIgnoreCase("/quit"));
 		}
 		/** Logs messages.
