@@ -35,10 +35,12 @@ public class LocalizedPropertyList {
 			<dt>sun.cpu.endian<dd>little
 			<dt>sun.io.unicode.encoding<dd>UnicodeLittle
 		</dl>
-		@param properties	The java.util.Properties stream
-		@throw IOException	On i/o errors
+		@param properties			The java.util.Properties stream
+		@param valueReplacements	A string of the form of :name=value,name=value[,etc.]"
+										Any value that contains "name" will be replaced with "value"
+		@throw IOException			On i/o errors
 	*/
-	static InputStream filter(InputStream properties) throws IOException {
+	static InputStream filter(InputStream properties,String valueReplacements) throws IOException {
 		Properties				munge= new Properties();
 		ArrayList<String>		propertyNames= new ArrayList<String>();
 		ByteArrayOutputStream	flattened= new ByteArrayOutputStream();
@@ -66,6 +68,22 @@ public class LocalizedPropertyList {
 				}
 			}
 		}
+		if(null != valueReplacements) {
+			String[]	pairs= valueReplacements.split(",");
+
+			for(String propertyName : propertyNames) {
+				String	value= munge.getProperty(propertyName);
+
+				for(String pair : pairs) {
+					String[]	keyValue= pair.split("=");
+
+					if(2 == keyValue.length) {
+						value= value.replace(keyValue[0], keyValue[1]);
+					}
+				}
+				munge.setProperty(propertyName, value);
+			}
+		}
 		// turn the Properties back into a stream
 		munge.store(flattened, "");
 		stream= new ByteArrayInputStream(flattened.toByteArray());
@@ -73,8 +91,8 @@ public class LocalizedPropertyList {
 	}
 	static public void main(String... args) {
 		String	properties=
-				"path=common"+"\n"+
-				"path.java.vm.vendor.Apple+Inc.=mac"+"\n"+
+				"path=logs"+"\n"+
+				"path.java.vm.vendor.Apple+Inc.=${log}/Library/Logs"+"\n"+
 				"setting=true"+"\n"+
 				"setting.user.country.US=false"+"\n"+
 				"good=false"+"\n"+
@@ -84,7 +102,10 @@ public class LocalizedPropertyList {
 		Properties	settings= new Properties();
 
 		try	{
-			settings.load(filter(new ByteArrayInputStream(properties.getBytes())));
+			settings.load(filter(new ByteArrayInputStream(properties.getBytes()),
+						 "${home}="+System.getProperty("user.home")
+					+","+"${logs}="+System.getProperty("user.home")+"/Library/Logs"
+			));
 			System.out.println("\nUnfiltered\n-----------\n");
 			System.out.println("path="+settings.getProperty("path"));
 			System.out.println("setting="+settings.getProperty("setting"));
