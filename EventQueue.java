@@ -1,8 +1,8 @@
 /** Multithreaded Event Queue messaging node.
 */
-public class MessageQueue {
+public class EventQueue {
 	public class Event {
-		public Event(int type, String key, byte[] value, MessageQueue response) {
+		public Event(int type, String key, byte[] value, EventQueue response) {
 			set(type, key, value, response);
 		}
 		public int getType() {
@@ -14,10 +14,10 @@ public class MessageQueue {
 		public byte[] getValue() {
 			return _value;
 		}
-		public MessageQueue getResults() {
+		public EventQueue getResults() {
 			return _response;
 		}
-		public void set(int type, String key, byte[] value, MessageQueue response) {
+		public void set(int type, String key, byte[] value, EventQueue response) {
 			_type= type;
 			_key= key;
 			_value= value;
@@ -26,13 +26,13 @@ public class MessageQueue {
 		private int 			_type;
 		private String			_key;
 		private byte[]			_value;
-		private MessageQueue	_response;
+		private EventQueue	_response;
 	}
-	public MessageQueue(int maxPendingEvents) {
+	public EventQueue(int maxPendingEvents) {
 		_queue= new BlockingQueue<Event>(maxPendingEvents);
 		_recycle= new BlockingQueue<Event>(1000 /* max recycled nodes */);
 	}
-	public boolean send(int type, String key, byte[] value, MessageQueue response) {
+	public boolean send(int type, String key, byte[] value, EventQueue response) {
 		Event	toSend= null;
 
 		if(!_recycle.empty()) {
