@@ -38,7 +38,7 @@ public class LocalizedPropertyList {
 		@param properties			The java.util.Properties stream
 		@param valueReplacements	A string of the form of :name=value,name=value[,etc.]"
 										Any value that contains "name" will be replaced with "value"
-		@throw IOException			On i/o errors
+		@throws IOException			On i/o errors
 	*/
 	static InputStream filter(InputStream properties,String valueReplacements) throws IOException {
 		Properties				munge= new Properties();
